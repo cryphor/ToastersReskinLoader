@@ -81,6 +81,9 @@ public class Plugin : IPuckPlugin
                 PartyLineup.Initialize();
                 ToothbrushFilter.ResetIfActive();
 
+                // Player QoL runtime (ported from PoncePlayerInput)
+                ToasterReskinLoader.QoL.QoLRunner.Bootstrap();
+
                 // The locker room scene is already loaded before the mod loads,
                 // so OnSceneLoaded won't fire - apply everything here
                 if (ChangingRoomHelper.IsInMainMenu())
@@ -109,6 +112,7 @@ public class Plugin : IPuckPlugin
             AppearanceAPI.Cleanup();
             PartyLineup.Cleanup();
             SwapperManager.Destroy();
+            ToasterReskinLoader.QoL.QoLRunner.Teardown();
             Plugin.Log($"Disabled! Goodbye!");
             MonoBehaviourSingleton<UIManager>.Instance.ToastManager.ShowToast("Warning", "Please restart your game to fully disable Toaster's Reskin Loader.", 5f);
             return true;

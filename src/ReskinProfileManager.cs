@@ -570,6 +570,9 @@ public static class ReskinProfileManager
                 puckFXSilhouetteColor = serializableProfile.PuckFXSilhouetteColor != null
                     ? (Color)serializableProfile.PuckFXSilhouetteColor
                     : defaultProfile.puckFXSilhouetteColor,
+
+                // Player QoL
+                playerQoL = serializableProfile.PlayerQoL ?? new QoL.QoLProfile(),
             };
 
             Plugin.Log("Reskin profile loaded successfully.");
@@ -782,7 +785,10 @@ public static class ReskinProfileManager
                 PuckFXTrailLifetime = currentProfile.puckFXTrailLifetime,
                 PuckFXTrailStartAlpha = currentProfile.puckFXTrailStartAlpha,
                 PuckFXTrailEndAlpha = currentProfile.puckFXTrailEndAlpha,
-                PuckFXSilhouetteColor = new SerializableColor(currentProfile.puckFXSilhouetteColor)
+                PuckFXSilhouetteColor = new SerializableColor(currentProfile.puckFXSilhouetteColor),
+
+                // Player QoL
+                PlayerQoL = currentProfile.playerQoL ?? new QoL.QoLProfile()
             };
 
             string json = JsonConvert.SerializeObject(serializableProfile, Formatting.Indented);
@@ -1228,6 +1234,9 @@ public static class ReskinProfileManager
         public float puckFXTrailStartAlpha = 0f;
         public float puckFXTrailEndAlpha = 1f;
         public Color puckFXSilhouetteColor = new Color(1f, 1f, 1f, 0.502f);
+
+        // Player QoL section (ported from PoncePlayerInput)
+        public QoL.QoLProfile playerQoL = new QoL.QoLProfile();
     }
     
     /// <summary>
@@ -1551,6 +1560,10 @@ public static class ReskinProfileManager
         public float? PuckFXTrailEndAlpha { get; set; }
         [JsonProperty("puckFXSilhouetteColor")]
         public SerializableColor PuckFXSilhouetteColor { get; set; }
+
+        // PLAYER QoL
+        [JsonProperty("playerQoL")]
+        public QoL.QoLProfile PlayerQoL { get; set; }
     }
 }
 
