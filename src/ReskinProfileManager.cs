@@ -570,6 +570,17 @@ public static class ReskinProfileManager
                 puckFXSilhouetteColor = serializableProfile.PuckFXSilhouetteColor != null
                     ? (Color)serializableProfile.PuckFXSilhouetteColor
                     : defaultProfile.puckFXSilhouetteColor,
+
+                glossRemoverEnabled = serializableProfile.GlossRemoverEnabled
+                    ?? defaultProfile.glossRemoverEnabled,
+                glossSmoothness = serializableProfile.GlossSmoothness
+                    ?? defaultProfile.glossSmoothness,
+                glossAffectSticks = serializableProfile.GlossAffectSticks
+                    ?? defaultProfile.glossAffectSticks,
+                glossAffectPlayers = serializableProfile.GlossAffectPlayers
+                    ?? defaultProfile.glossAffectPlayers,
+                glossAffectPucks = serializableProfile.GlossAffectPucks
+                    ?? defaultProfile.glossAffectPucks,
             };
 
             Plugin.Log("Reskin profile loaded successfully.");
@@ -782,7 +793,13 @@ public static class ReskinProfileManager
                 PuckFXTrailLifetime = currentProfile.puckFXTrailLifetime,
                 PuckFXTrailStartAlpha = currentProfile.puckFXTrailStartAlpha,
                 PuckFXTrailEndAlpha = currentProfile.puckFXTrailEndAlpha,
-                PuckFXSilhouetteColor = new SerializableColor(currentProfile.puckFXSilhouetteColor)
+                PuckFXSilhouetteColor = new SerializableColor(currentProfile.puckFXSilhouetteColor),
+
+                GlossRemoverEnabled = currentProfile.glossRemoverEnabled,
+                GlossSmoothness = currentProfile.glossSmoothness,
+                GlossAffectSticks = currentProfile.glossAffectSticks,
+                GlossAffectPlayers = currentProfile.glossAffectPlayers,
+                GlossAffectPucks = currentProfile.glossAffectPucks,
             };
 
             string json = JsonConvert.SerializeObject(serializableProfile, Formatting.Indented);
@@ -1041,6 +1058,29 @@ public static class ReskinProfileManager
         swappers.CrispyShadowsSwapper.Apply();
     }
 
+    /// <summary>
+    /// Resets only the Gloss Remover properties of the current profile
+    /// to their default values and saves the profile.
+    /// </summary>
+    public static void ResetGlossRemoverToDefault()
+    {
+        Plugin.Log("Resetting Gloss Remover settings to their default values.");
+
+        var defaultValues = new Profile();
+
+        currentProfile.glossRemoverEnabled = defaultValues.glossRemoverEnabled;
+        currentProfile.glossSmoothness = defaultValues.glossSmoothness;
+        currentProfile.glossAffectSticks = defaultValues.glossAffectSticks;
+        currentProfile.glossAffectPlayers = defaultValues.glossAffectPlayers;
+        currentProfile.glossAffectPucks = defaultValues.glossAffectPucks;
+
+        SaveProfile();
+
+        swappers.GlossSwapper.RestoreAll();
+        if (currentProfile.glossRemoverEnabled)
+            swappers.GlossSwapper.Scan();
+    }
+
     public static void ResetMinimapToDefault()
     {
         Plugin.Log("Resetting minimap settings to their default values.");
@@ -1228,6 +1268,13 @@ public static class ReskinProfileManager
         public float puckFXTrailStartAlpha = 0f;
         public float puckFXTrailEndAlpha = 1f;
         public Color puckFXSilhouetteColor = new Color(1f, 1f, 1f, 0.502f);
+
+        // Gloss Remover section
+        public bool glossRemoverEnabled = false;
+        public float glossSmoothness = 0.5f;
+        public bool glossAffectSticks = true;
+        public bool glossAffectPlayers = true;
+        public bool glossAffectPucks = true;
     }
     
     /// <summary>
@@ -1551,6 +1598,17 @@ public static class ReskinProfileManager
         public float? PuckFXTrailEndAlpha { get; set; }
         [JsonProperty("puckFXSilhouetteColor")]
         public SerializableColor PuckFXSilhouetteColor { get; set; }
+
+        [JsonProperty("glossRemoverEnabled")]
+        public bool? GlossRemoverEnabled { get; set; }
+        [JsonProperty("glossSmoothness")]
+        public float? GlossSmoothness { get; set; }
+        [JsonProperty("glossAffectSticks")]
+        public bool? GlossAffectSticks { get; set; }
+        [JsonProperty("glossAffectPlayers")]
+        public bool? GlossAffectPlayers { get; set; }
+        [JsonProperty("glossAffectPucks")]
+        public bool? GlossAffectPucks { get; set; }
     }
 }
 
