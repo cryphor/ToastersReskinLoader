@@ -144,8 +144,14 @@ public static class GlossSection
     {
         Button btn = new Button { text = name };
         btn.style.flexGrow = 1;
-        btn.style.height = 36;
+        btn.style.height = 28;
         btn.style.marginRight = 4;
+        btn.style.paddingLeft = 0;
+        btn.style.paddingRight = 0;
+        btn.style.paddingTop = 0;
+        btn.style.paddingBottom = 0;
+        btn.style.fontSize = 13;
+        btn.style.unityTextAlign = TextAnchor.MiddleCenter;
         btn.style.backgroundColor = new StyleColor(new Color(0.25f, 0.25f, 0.25f));
         btn.style.color = Color.white;
         UITools.AddHoverEffectsForButton(btn);
