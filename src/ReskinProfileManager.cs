@@ -1,4 +1,4 @@
-﻿// ReskinProfileManager.cs
+// ReskinProfileManager.cs
 
 using System;
 using System.Collections.Generic;
@@ -571,6 +571,10 @@ public static class ReskinProfileManager
                     ? (Color)serializableProfile.PuckFXSilhouetteColor
                     : defaultProfile.puckFXSilhouetteColor,
 
+                // Player QoL
+                playerQoL = serializableProfile.PlayerQoL ?? new qol.QoLProfile(),
+              
+                // glossiness
                 glossRemoverEnabled = serializableProfile.GlossRemoverEnabled
                     ?? defaultProfile.glossRemoverEnabled,
                 glossSmoothness = serializableProfile.GlossSmoothness
@@ -795,6 +799,10 @@ public static class ReskinProfileManager
                 PuckFXTrailEndAlpha = currentProfile.puckFXTrailEndAlpha,
                 PuckFXSilhouetteColor = new SerializableColor(currentProfile.puckFXSilhouetteColor),
 
+                // Player QoL
+                PlayerQoL = currentProfile.playerQoL ?? new qol.QoLProfile()
+                  
+                // Glossiness
                 GlossRemoverEnabled = currentProfile.glossRemoverEnabled,
                 GlossSmoothness = currentProfile.glossSmoothness,
                 GlossAffectSticks = currentProfile.glossAffectSticks,
@@ -1269,6 +1277,9 @@ public static class ReskinProfileManager
         public float puckFXTrailEndAlpha = 1f;
         public Color puckFXSilhouetteColor = new Color(1f, 1f, 1f, 0.502f);
 
+        // Player QoL section (ported from PoncePlayerInput)
+        public qol.QoLProfile playerQoL = new qol.QoLProfile();
+      
         // Gloss Remover section
         public bool glossRemoverEnabled = false;
         public float glossSmoothness = 0.5f;
@@ -1599,6 +1610,11 @@ public static class ReskinProfileManager
         [JsonProperty("puckFXSilhouetteColor")]
         public SerializableColor PuckFXSilhouetteColor { get; set; }
 
+        // PLAYER QoL
+        [JsonProperty("playerQoL")]
+        public qol.QoLProfile PlayerQoL { get; set; }
+      
+        // Glossiness
         [JsonProperty("glossRemoverEnabled")]
         public bool? GlossRemoverEnabled { get; set; }
         [JsonProperty("glossSmoothness")]

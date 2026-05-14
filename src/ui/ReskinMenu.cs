@@ -24,7 +24,7 @@ public static class ReskinMenu
     
     // menu state
     public static string[] sections = new []{"Packs", "Appearance", "Sticks", "Tapes", "Skaters", "Goalies", "Pucks", "Puck FX", "Arena",
-        "Skybox", "Shadows", "Glossiness", "User Interface", "Extras", "About" };
+        "Skybox", "Shadows", "User Interface", "Quality of Life", "Glossiness", "Extras", "About" };
     public static int selectedSectionIndex = 0;
 
     public static void Show()
@@ -385,6 +385,9 @@ public static class ReskinMenu
                 break;
             case "User Interface":
                 UISection.CreateSection(contentScrollViewContent);
+                break;
+            case "Quality of Life":
+                PlayerQoLSection.CreateSection(contentScrollViewContent);
                 break;
             case "Extras":
                 ExtrasSection.CreateSection(contentScrollViewContent);
