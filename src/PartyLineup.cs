@@ -25,6 +25,7 @@ public static class PartyLineup
         public LockerRoomStick StickClone;
         public string SteamId;
         public ulong Key; // unique key for GenderSwapper/HatSwapper tracking
+        public List<Material> OwnedMaterials = new(); // created by BreakMaterialSharing
     }
 
     private static readonly Dictionary<string, PartyMemberSlot> slots = new();
@@ -37,6 +38,14 @@ public static class PartyLineup
         .GetField("playerMesh", BindingFlags.Instance | BindingFlags.NonPublic);
     private static readonly FieldInfo _attackerStickMeshField = typeof(LockerRoomStick)
         .GetField("attackerStickMesh", BindingFlags.Instance | BindingFlags.NonPublic);
+
+    // MeshRendererTexturer caches a per-instance Material reference; on a clone
+    // this still points at the original's material, so writes leak to the local
+    // player. We null these out after cloning to force a fresh per-renderer copy.
+    private static readonly FieldInfo _mrtMaterialField = typeof(MeshRendererTexturer)
+        .GetField("material", BindingFlags.Instance | BindingFlags.NonPublic);
+    private static readonly FieldInfo _mrtIsInstantiatedField = typeof(MeshRendererTexturer)
+        .GetField("isMaterialInstantiated", BindingFlags.Instance | BindingFlags.NonPublic);
 
     // For reading valid IDs from serialized lists
     private static readonly FieldInfo _jerseysField = typeof(PlayerTorso)
@@ -205,14 +214,22 @@ public static class PartyLineup
         if (playerController != null) Object.DestroyImmediate(playerController);
         partyPlayerClones.Add(playerClone);
 
+        // Break material sharing: Instantiate copies Material references by ref,
+        // so writes from the clone (SetJerseyID, ApplyHeadColors, etc.) would
+        // leak into the local player's already-instantiated materials. The
+        // materials we create here are tracked on the slot for cleanup below.
+        var ownedMaterials = new List<Material>();
+        BreakMaterialSharing(playerClone.gameObject, ownedMaterials);
+
         // Position relative to the original
         Vector3 basePos = origPlayer.transform.position;
         Vector3 offset = slotIndex < SlotPositions.Length
             ? SlotPositions[slotIndex] : new Vector3(0, 0, -3f);
         playerClone.transform.position = basePos + offset;
 
-        float rotY = origPlayer.transform.rotation.eulerAngles.y +
-            (slotIndex < SlotRotationY.Length ? SlotRotationY[slotIndex] : 0f);
+        // Use a fixed front-facing rotation (do NOT inherit origPlayer's rotation,
+        // which follows the user's mouse via LockerRoomPlayerController).
+        float rotY = slotIndex < SlotRotationY.Length ? SlotRotationY[slotIndex] : 0f;
         playerClone.transform.rotation = Quaternion.Euler(0, rotY, 0);
 
         // The LockerRoomStick is a child of the LockerRoomPlayer in the scene,
@@ -234,6 +251,7 @@ public static class PartyLineup
             StickClone = stickClone,
             SteamId = steamId,
             Key = key,
+            OwnedMaterials = ownedMaterials,
         };
         slots[steamId] = slot;
 
@@ -367,7 +385,10 @@ public static class PartyLineup
         var playerMesh = _playerMeshField?.GetValue(slot.PlayerClone) as PlayerMesh;
         if (playerMesh == null) return;
 
-        PlayerTeam team = rng.Next(2) == 0 ? PlayerTeam.Blue : PlayerTeam.Red;
+        // Match the local player's team so the clones' jersey/groin materials
+        // (shared via Instantiate) don't swap the local player's groin to the
+        // opposite team's color.
+        PlayerTeam team = SettingsManager.Team;
 
         // Pick a random valid jersey ID from the serialized list
         try
@@ -466,6 +487,47 @@ public static class PartyLineup
         }
     }
 
+    /// <summary>
+    /// Replaces every Renderer's materials in the clone hierarchy with fresh
+    /// per-instance copies, and clears MeshRendererTexturer's cached Material
+    /// reference. Without this, the clone shares Material instances with the
+    /// local player — so any SetTexture / SetColor call on the clone bleeds
+    /// onto the local player's body, head, stick, etc.
+    /// </summary>
+    private static void BreakMaterialSharing(GameObject root, List<Material> ownedMaterials)
+    {
+        if (root == null) return;
+
+        var renderers = root.GetComponentsInChildren<Renderer>(true);
+        foreach (var r in renderers)
+        {
+            if (r == null) continue;
+            var shared = r.sharedMaterials;
+            if (shared == null || shared.Length == 0) continue;
+            var copies = new Material[shared.Length];
+            for (int i = 0; i < shared.Length; i++)
+            {
+                if (shared[i] != null)
+                {
+                    copies[i] = new Material(shared[i]);
+                    ownedMaterials?.Add(copies[i]);
+                }
+            }
+            r.sharedMaterials = copies;
+        }
+
+        // MRT lazily caches Material on first access. The cached ref points at
+        // the original's per-instance material; null it so the next access
+        // re-fetches via MeshRenderer.material (which is now our fresh copy).
+        var texturers = root.GetComponentsInChildren<MeshRendererTexturer>(true);
+        foreach (var t in texturers)
+        {
+            if (t == null) continue;
+            _mrtMaterialField?.SetValue(t, null);
+            _mrtIsInstantiatedField?.SetValue(t, false);
+        }
+    }
+
     // ── Cleanup ─────────────────────────────────────────────────────
 
     private static void DestroySlot(string steamId)
@@ -485,6 +547,16 @@ public static class PartyLineup
         {
             partyStickClones.Remove(slot.StickClone);
             Object.Destroy(slot.StickClone.gameObject);
+        }
+
+        // Destroy materials we created in BreakMaterialSharing — Unity does not
+        // auto-clean materials assigned via sharedMaterials when their renderer
+        // GameObject is destroyed.
+        if (slot.OwnedMaterials != null)
+        {
+            foreach (var mat in slot.OwnedMaterials)
+                if (mat != null) Object.Destroy(mat);
+            slot.OwnedMaterials.Clear();
         }
 
         slots.Remove(steamId);

@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using HarmonyLib;
 using ToasterReskinLoader.api;
+using ToasterReskinLoader.qol;
 using ToasterReskinLoader.swappers;
 using ToasterReskinLoader.ui;
 using ToasterReskinLoader.ui.sections;
@@ -25,6 +26,7 @@ public class Plugin : IPuckPlugin
         Plugin.Log($"Enabling {MOD_VERSION}...");
         try
         {
+            PatchStripAnsiLogs.Apply(harmony);
             if (IsDedicatedServer())
             {
                 Plugin.Log("Environment: dedicated server.");
@@ -84,6 +86,9 @@ public class Plugin : IPuckPlugin
                 // Player QoL runtime (ported from PoncePlayerInput)
                 ToasterReskinLoader.qol.QoLRunner.Bootstrap();
 
+                // QoL: BetterFriendsList. TODO: gate this on a config option once the QoL tab lands.
+                BetterFriendsList.Enable();
+
                 // The locker room scene is already loaded before the mod loads,
                 // so OnSceneLoaded won't fire - apply everything here
                 if (ChangingRoomHelper.IsInMainMenu())
@@ -108,6 +113,7 @@ public class Plugin : IPuckPlugin
         try
         {
             Plugin.Log($"Disabling...");
+            BetterFriendsList.Disable();
             harmony.UnpatchSelf();
             AppearanceAPI.Cleanup();
             PartyLineup.Cleanup();

@@ -470,6 +470,16 @@ public static class PlayerCustomizationSection
                Mathf.Abs(a.b - b.b) < 0.01f;
     }
 
+    /// <summary>
+    /// Re-applies the stored local appearance (skin tone, hair color, body type, hat)
+    /// to the locker room preview. Called on locker_room scene load so the user's
+    /// saved appearance shows up without needing to open the Appearance tab.
+    /// </summary>
+    public static void ReapplyLocalAppearanceToLockerRoom()
+    {
+        ApplyToLockerRoom(syncToServer: false);
+    }
+
     private static void ApplyToLockerRoom(bool syncToServer = true)
     {
         if (!ChangingRoomHelper.IsInMainMenu()) return;

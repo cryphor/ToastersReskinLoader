@@ -209,7 +209,22 @@ public static class SwapperManager
         // Rebuild or destroy party lineup based on scene
         PartyLineup.OnSceneChanged(scene.name, MonoBehaviourSingleton<UIManager>.Instance);
 
+        // Re-apply the local player's saved appearance (skin tone, hair, body, hat)
+        // when entering the locker room. Without this, the head color only applies
+        // once the user opens the Appearance tab.
+        if (scene.name.Equals("locker_room"))
+        {
+            MonoBehaviourSingleton<UIManager>.Instance.StartCoroutine(ReapplyLocalAppearanceAfterDelay());
+        }
+
         SetAll();
+    }
+
+    private static System.Collections.IEnumerator ReapplyLocalAppearanceAfterDelay()
+    {
+        // Wait a frame so LockerRoomPlayer / PlayerMesh are fully initialized
+        yield return null;
+        ui.sections.PlayerCustomizationSection.ReapplyLocalAppearanceToLockerRoom();
     }
 
     public static void OnBlueJerseyChanged() => OnJerseyChanged(PlayerTeam.Blue);
