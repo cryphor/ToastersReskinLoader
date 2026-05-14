@@ -56,6 +56,11 @@ internal static class SavedServerPasswords
     // Default-true if absent. Set false when the user unchecks Remember.
     private static readonly Dictionary<string, bool> _rememberFor = new Dictionary<string, bool>();
 
+    // ip:port -> friendly server name, populated passively by the server
+    // browser. Used by the management UI to show "Server Name" instead of
+    // a bare ip:port. In-memory only; rebuilt as the browser pings.
+    private static readonly Dictionary<string, string> _serverNameCache = new Dictionary<string, string>();
+
     private static bool Enabled =>
         QoLRunner.Instance?.Config?.enableSavedServerPasswords ?? false;
 
@@ -141,6 +146,14 @@ internal static class SavedServerPasswords
         return list;
     }
 
+    // Friendly name lookup populated by the server-browser hook. Returns
+    // null when we haven't seen this ip:port pinged this session.
+    internal static string GetCachedServerName(string key)
+    {
+        if (string.IsNullOrEmpty(key)) return null;
+        return _serverNameCache.TryGetValue(key, out string n) ? n : null;
+    }
+
     internal static void SetRememberFor(string key, bool remember)
     {
         if (string.IsNullOrEmpty(key)) return;
@@ -175,6 +188,23 @@ internal static class SavedServerPasswords
 
             string key = KeyForLastConnection();
             if (string.IsNullOrEmpty(key)) return;
+
+            // Auto-forget: when our auto-filled password was the one that
+            // just got rejected (we already tried this attempt + still
+            // have a saved entry), the saved entry is stale — drop it now
+            // so the next attempt prompts the user fresh instead of
+            // wasting another round-trip with the wrong value. The popup
+            // is already on screen (vanilla's HandleConnectionRejection
+            // showed it) with the red "Incorrect password" label, so the
+            // user can just type the new one.
+            if (rejection.code == ConnectionRejectionCode.InvalidPassword
+                && _alreadyTriedSavedFor.Contains(key)
+                && HasSaved(key))
+            {
+                Remove(key);
+                return;
+            }
+
             if (_alreadyTriedSavedFor.Contains(key)) return;
             if (!TryGetSaved(key, out string saved)) return;
 
@@ -270,6 +300,7 @@ internal static class SavedServerPasswords
                     var err = new Label("Incorrect password — please try again.");
                     err.style.color = new Color(1f, 0.45f, 0.45f);
                     err.style.unityFontStyleAndWeight = FontStyle.Bold;
+                    err.style.fontSize = 13;
                     err.style.marginTop = 6;
                     err.style.marginBottom = 6;
                     err.style.whiteSpace = WhiteSpace.Normal;
@@ -287,12 +318,21 @@ internal static class SavedServerPasswords
                     }
                 }
 
-                // Remember checkbox.
+                // Remember checkbox. Lower the label font size below the
+                // popup body default — the inner "unity-toggle__label" is
+                // what renders the text, so target that on attach.
                 var remember = new Toggle("Remember password for this server")
                 {
                     value = GetRememberFor(key)
                 };
                 remember.style.marginTop = 10;
+                remember.style.fontSize = 13;
+                ToasterReskinLoader.ui.UITools.StyleConfigCheckboxBox(remember);
+                remember.RegisterCallback<AttachToPanelEvent>(_ =>
+                {
+                    var lbl = remember.Q<Label>(className: "unity-toggle__label");
+                    if (lbl != null) lbl.style.fontSize = 13;
+                });
                 remember.RegisterCallback<ChangeEvent<bool>>(evt => SetRememberFor(key, evt.newValue));
                 root.Add(remember);
 
@@ -312,6 +352,24 @@ internal static class SavedServerPasswords
                 root.Add(hint);
             }
             catch (Exception e) { Debug.LogWarning("[QoL] SavedServerPasswords popup inject failed: " + e.Message); }
+        }
+    }
+
+    // Passively cache friendly server names as the vanilla server browser
+    // pings each server. The cache is in-memory only; it doesn't matter if
+    // it's empty (the management UI just falls back to ip:port).
+    [HarmonyPatch(typeof(UIServerBrowser), "SetServerPreviewData")]
+    private static class ServerBrowser_CacheName_Postfix
+    {
+        private static void Postfix(EndPoint endPoint, ServerPreviewData previewData)
+        {
+            try
+            {
+                if (endPoint == null || previewData == null) return;
+                if (string.IsNullOrEmpty(previewData.name)) return;
+                _serverNameCache[endPoint.ipAddress + ":" + endPoint.port] = previewData.name;
+            }
+            catch { }
         }
     }
 }

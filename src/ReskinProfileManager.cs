@@ -571,9 +571,8 @@ public static class ReskinProfileManager
                     ? (Color)serializableProfile.PuckFXSilhouetteColor
                     : defaultProfile.puckFXSilhouetteColor,
 
-                // Player QoL
-                playerQoL = serializableProfile.PlayerQoL ?? new qol.QoLProfile(),
-              
+                // QoL lives in side-car files now; nothing to copy here.
+
                 // glossiness
                 glossRemoverEnabled = serializableProfile.GlossRemoverEnabled
                     ?? defaultProfile.glossRemoverEnabled,
@@ -799,8 +798,8 @@ public static class ReskinProfileManager
                 PuckFXTrailEndAlpha = currentProfile.puckFXTrailEndAlpha,
                 PuckFXSilhouetteColor = new SerializableColor(currentProfile.puckFXSilhouetteColor),
 
-                // Player QoL
-                PlayerQoL = currentProfile.playerQoL ?? new qol.QoLProfile(),
+                // QoL is persisted by QoLStorage; do not re-include it
+                // in the reskin profile so visual profiles stay shareable.
 
                 // Glossiness
                 GlossRemoverEnabled = currentProfile.glossRemoverEnabled,
@@ -1277,9 +1276,10 @@ public static class ReskinProfileManager
         public float puckFXTrailEndAlpha = 1f;
         public Color puckFXSilhouetteColor = new Color(1f, 1f, 1f, 0.502f);
 
-        // Player QoL section (ported from PoncePlayerInput)
-        public qol.QoLProfile playerQoL = new qol.QoLProfile();
-      
+        // QoL config lives in its own side-car files now (reskinprofiles/
+        // QoL.json + ServerPrefs.json) so visual profiles stay shareable
+        // without leaking toggles or per-server credentials. See QoLStorage.
+
         // Gloss Remover section
         public bool glossRemoverEnabled = false;
         public float glossSmoothness = 0.5f;
@@ -1610,8 +1610,15 @@ public static class ReskinProfileManager
         [JsonProperty("puckFXSilhouetteColor")]
         public SerializableColor PuckFXSilhouetteColor { get; set; }
 
-        // PLAYER QoL
-        [JsonProperty("playerQoL")]
+        // Legacy: pre-split, the QoL surface was nested inside this
+        // profile. QoLStorage migrates the block out on first run; the
+        // property is kept here only so deserialization of an older
+        // ReskinProfile.json doesn't error and QoLStorage can still
+        // detect "needs migration". NullValueHandling.Ignore ensures the
+        // field is omitted from any new save (since we never repopulate
+        // it). Do NOT add anything to this — write to QoL.json /
+        // ServerPrefs.json via QoLStorage instead.
+        [JsonProperty("playerQoL", NullValueHandling = NullValueHandling.Ignore)]
         public qol.QoLProfile PlayerQoL { get; set; }
       
         // Glossiness
