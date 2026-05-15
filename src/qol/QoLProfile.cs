@@ -1,8 +1,8 @@
-// QoLProfile — the persisted slice of the QoL feature surface, stored
-// as a nested object inside Toaster's ReskinProfile.json.
-//
-// Trimmed to match the surviving QoLConfig (arena disable extras,
-// goalie wide-view camera, dev console, debug logging).
+// QoLProfile — persistence shape for QoL toggles + filters. Written to
+// reskinprofiles/QoL.json by QoLStorage. Does NOT include per-server
+// credentials (saved passwords, trusted mod sets); those live in
+// reskinprofiles/ServerPrefs.json so reskin profiles can be shared
+// without leaking them.
 
 using Newtonsoft.Json;
 
@@ -36,7 +36,7 @@ public class QoLProfile
     [JsonProperty("enableInlineServerBrowserFilters")]
     public bool EnableInlineServerBrowserFilters { get; set; } = true;
     [JsonProperty("enableHideInactiveChat")]
-    public bool EnableHideInactiveChat { get; set; } = true;
+    public bool EnableHideInactiveChat { get; set; } = false;
     [JsonProperty("enableSpectatorMinimap")]
     public bool EnableSpectatorMinimap { get; set; } = true;
     [JsonProperty("enableBrowserFilterPersistence")]
@@ -47,6 +47,10 @@ public class QoLProfile
     public bool EnableTeamButtonPlayerCount { get; set; } = true;
     [JsonProperty("enablePartyLineup")]
     public bool EnablePartyLineup { get; set; } = true;
+    [JsonProperty("enableSavedServerPasswords")]
+    public bool EnableSavedServerPasswords { get; set; } = false;
+    [JsonProperty("enableServerBrowserSortTweaks")]
+    public bool EnableServerBrowserSortTweaks { get; set; } = false;
 
     // Additions
     [JsonProperty("enableBetterFriendsList")]
@@ -88,9 +92,9 @@ public class QoLProfile
     [JsonProperty("devConsoleH")]
     public float DevConsoleH { get; set; } = 460f;
 
-    public ToasterReskinLoader.qol.QoLConfig ToConfig()
+    public QoLConfig ToConfig()
     {
-        return new ToasterReskinLoader.qol.QoLConfig
+        return new QoLConfig
         {
             disableArenaVisuals = DisableArenaVisuals,
             disableArenaProps = DisableArenaProps,
@@ -109,6 +113,8 @@ public class QoLProfile
             enableNumberedNames = EnableNumberedNames,
             enableTeamButtonPlayerCount = EnableTeamButtonPlayerCount,
             enablePartyLineup = EnablePartyLineup,
+            enableSavedServerPasswords = EnableSavedServerPasswords,
+            enableServerBrowserSortTweaks = EnableServerBrowserSortTweaks,
             enableBetterFriendsList = EnableBetterFriendsList,
             enableBeaconPing = EnableBeaconPing,
             enableServerPreviewCache = EnableServerPreviewCache,
@@ -129,14 +135,13 @@ public class QoLProfile
         };
     }
 
-    public void FromConfig(ToasterReskinLoader.qol.QoLConfig c)
+    public void FromConfig(QoLConfig c)
     {
         if (c == null) return;
         DisableArenaVisuals = c.disableArenaVisuals;
         DisableArenaProps = c.disableArenaProps;
         DisableArenaLights = c.disableArenaLights;
         DisableArenaSkybox = c.disableArenaSkybox;
-        DisableArenaParticles = c.disableArenaParticles;
         DisableArenaParticles = c.disableArenaParticles;
         ArenaAudioVolume = c.arenaAudioVolume;
         EnableEscCloseMenus = c.enableEscCloseMenus;
@@ -150,6 +155,8 @@ public class QoLProfile
         EnableNumberedNames = c.enableNumberedNames;
         EnableTeamButtonPlayerCount = c.enableTeamButtonPlayerCount;
         EnablePartyLineup = c.enablePartyLineup;
+        EnableSavedServerPasswords = c.enableSavedServerPasswords;
+        EnableServerBrowserSortTweaks = c.enableServerBrowserSortTweaks;
         EnableBetterFriendsList = c.enableBetterFriendsList;
         EnableBeaconPing = c.enableBeaconPing;
         EnableServerPreviewCache = c.enableServerPreviewCache;
@@ -168,4 +175,17 @@ public class QoLProfile
         DevConsoleW = c.devConsoleW;
         DevConsoleH = c.devConsoleH;
     }
+}
+
+// Persistence shape for per-server credentials. Written to a separate
+// file so reskin profiles stay clean of any personal data.
+public class ServerPrefsProfile
+{
+    [JsonProperty("savedServerPasswords")]
+    public System.Collections.Generic.Dictionary<string, string> SavedServerPasswords { get; set; }
+        = new System.Collections.Generic.Dictionary<string, string>();
+
+    [JsonProperty("trustedServerMods")]
+    public System.Collections.Generic.Dictionary<string, string> TrustedServerMods { get; set; }
+        = new System.Collections.Generic.Dictionary<string, string>();
 }
