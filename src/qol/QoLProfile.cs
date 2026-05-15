@@ -1,8 +1,8 @@
-// QoLProfile — persistence shape for QoL toggles + filters. Written to
-// reskinprofiles/QoL.json by QoLStorage. Does NOT include per-server
-// credentials (saved passwords, trusted mod sets); those live in
-// reskinprofiles/ServerPrefs.json so reskin profiles can be shared
-// without leaking them.
+// QoLProfile — persistence shape for QoL toggles + filters. Written by
+// QoLStorage to <gameRoot>/config/ToastersReskinLoaderQoL.json. Does NOT
+// include per-server credentials (saved passwords, trusted mod sets);
+// those live in ToastersReskinLoaderServerPrefs.json (see ServerPrefsProfile
+// below) so reskin profiles can be shared without leaking them.
 
 using Newtonsoft.Json;
 

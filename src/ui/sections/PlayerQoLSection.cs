@@ -79,7 +79,7 @@ public static class PlayerQoLSection
             v => { cfg.enableBrowserFilterPersistence = v; runner.SaveAndRefresh(); });
 
         ToggleRow(contentScrollViewContent,
-            "Server browser sort tweaks",
+            "Improve server browser sort order",
             cfg.enableServerBrowserSortTweaks,
             v =>
             {
