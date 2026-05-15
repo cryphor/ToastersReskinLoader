@@ -117,8 +117,22 @@ public static class VanillaUIRetheme
         foreach (var cls in TargetClasses)
         {
             foreach (var ve in root.Query(className: cls).Build())
+            {
+                if (IsInsideChat(ve)) continue;
                 ve.style.backgroundColor = sc;
+            }
         }
+    }
+
+    // The in-game chat input is intentionally a light-gray transparent box —
+    // skip any element whose ancestor is UIChat's "ChatView" root.
+    private static bool IsInsideChat(VisualElement ve)
+    {
+        for (var cur = ve; cur != null; cur = cur.parent)
+        {
+            if (cur.name == "ChatView") return true;
+        }
+        return false;
     }
 
     // ── Popover (dropdown menu) styling ──────────────────────────────────────

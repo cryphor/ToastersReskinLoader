@@ -78,7 +78,7 @@ public class Plugin : IPuckPlugin
                 UISection.ApplyChatHeight(ReskinProfileManager.currentProfile.chatHeight);
                 UISection.ApplyQuickChatPosition();
                 MinimapSwapper.ApplyRefreshRate();
-                ModMenuEnhancer.RegisterEvents();
+                // ModMenuEnhancer.RegisterEvents(); // disabled pending b323 UIMods rework
                 SwapperManager.SetupMatchmakingListeners();
                 PartyLineup.Initialize();
                 ToothbrushFilter.ResetIfActive();
