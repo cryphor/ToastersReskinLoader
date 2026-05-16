@@ -1,8 +1,8 @@
-// QoLProfile — persistence shape for QoL toggles + filters. Written to
-// reskinprofiles/QoL.json by QoLStorage. Does NOT include per-server
-// credentials (saved passwords, trusted mod sets); those live in
-// reskinprofiles/ServerPrefs.json so reskin profiles can be shared
-// without leaking them.
+// QoLProfile — persistence shape for QoL toggles + filters. Written by
+// QoLStorage to <gameRoot>/config/ToastersReskinLoaderQoL.json. Does NOT
+// include per-server credentials (saved passwords, trusted mod sets);
+// those live in ToastersReskinLoaderServerPrefs.json (see ServerPrefsProfile
+// below) so reskin profiles can be shared without leaking them.
 
 using Newtonsoft.Json;
 
@@ -42,15 +42,15 @@ public class QoLProfile
     [JsonProperty("enableBrowserFilterPersistence")]
     public bool EnableBrowserFilterPersistence { get; set; } = true;
     [JsonProperty("enableNumberedNames")]
-    public bool EnableNumberedNames { get; set; } = true;
+    public bool EnableNumberedNames { get; set; } = false;
     [JsonProperty("enableTeamButtonPlayerCount")]
     public bool EnableTeamButtonPlayerCount { get; set; } = true;
     [JsonProperty("enablePartyLineup")]
     public bool EnablePartyLineup { get; set; } = true;
     [JsonProperty("enableSavedServerPasswords")]
-    public bool EnableSavedServerPasswords { get; set; } = false;
+    public bool EnableSavedServerPasswords { get; set; } = true;
     [JsonProperty("enableServerBrowserSortTweaks")]
-    public bool EnableServerBrowserSortTweaks { get; set; } = false;
+    public bool EnableServerBrowserSortTweaks { get; set; } = true;
 
     // Additions
     [JsonProperty("enableBetterFriendsList")]
