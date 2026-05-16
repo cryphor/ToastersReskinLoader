@@ -40,10 +40,6 @@ internal static class ScoreboardPolish
     private static Label _redScoreLabel;
     private static Label _phaseLabel;
 
-    // Tracks whether shadows are currently applied so we only flip the
-    // styles on a state change instead of every frame.
-    private static bool? _shadowApplied;
-
     // Server-authoritative tick + the real time we received it. We
     // interpolate locally between ticks for millisecond precision.
     private static int _lastTick;
@@ -106,8 +102,6 @@ internal static class ScoreboardPolish
         var cfg = Cfg;
         if (cfg == null) return;
 
-        UpdateShadows(cfg.enableScoreboardTextShadow);
-
         // Clamp the local interpolation window so a paused/between-
         // period server doesn't drift the displayed value into the
         // past. 1.0s mirrors Server_Tick's 1s cadence.
@@ -116,43 +110,6 @@ internal static class ScoreboardPolish
 
         UpdateText(cfg.enableScoreboardMilliseconds, effective);
         UpdateColor(cfg.enableScoreboardClockColor, effective);
-    }
-
-    // Apply or strip the shadow only when the toggle state changes —
-    // TextShadow assignments allocate a struct + dirty layout and
-    // there's no need to do it 60 times per second when the flag is
-    // stable.
-    private static void UpdateShadows(bool want)
-    {
-        if (_shadowApplied == want) return;
-        _shadowApplied = want;
-
-        var labels = new[] { _blueScoreLabel, _redScoreLabel, _timeLabel, _phaseLabel };
-        if (want)
-        {
-            // CSS analogue: text-shadow: 2px 2px 4px rgba(0,0,0,0.7).
-            var shadow = new TextShadow
-            {
-                offset = new Vector2(2f, 2f),
-                blurRadius = 4f,
-                color = new Color(0f, 0f, 0f, 0.7f),
-            };
-            foreach (var lbl in labels)
-            {
-                if (lbl == null) continue;
-                try { lbl.style.textShadow = shadow; }
-                catch (Exception e) { Plugin.LogWarning($"[QoL] textShadow apply failed: {e.Message}"); }
-            }
-        }
-        else
-        {
-            foreach (var lbl in labels)
-            {
-                if (lbl == null) continue;
-                try { lbl.style.textShadow = StyleKeyword.Null; }
-                catch { }
-            }
-        }
     }
 
     private static void UpdateText(bool wantMilliseconds, float effective)

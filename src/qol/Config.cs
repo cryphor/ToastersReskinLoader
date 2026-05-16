@@ -38,7 +38,20 @@ public class QoLConfig
     public bool enableTeamButtonPlayerCount = true;
     public bool enablePartyLineup = true;
     public bool enableSavedServerPasswords = false;
-    public bool enableServerBrowserSortTweaks = false;
+    // Per-store toggles for the four server-browser-side memory stores.
+    // Each is independently enable-able from the QoL UI's "Server
+    // Browser" section.
+    //   * enableServerFavorites  → ★ button + favorites-to-top sort
+    //   * enableServerBlocks     → right-click block + hide blocked rows
+    //   * enableTrustedModLists  → auto-confirm MODS REQUIRED popup
+    public bool enableServerFavorites  = false;
+    public bool enableServerBlocks     = false;
+    public bool enableTrustedModLists  = true;
+    // OS-font fallback registration for both TMP and UI Toolkit text
+    // stacks. The b323 LiberationSans bundled with Puck only ships basic
+    // Latin glyphs, so things like ▶/▼/★/☆ render as blank boxes
+    // until we attach a system font (Segoe UI Symbol, etc.) as fallback.
+    public bool enableUnicodeFontFallback = true;
 
     // Additions — opt-in QoL enhancements layered on top of vanilla
     public bool enableBetterFriendsList = true;
@@ -57,17 +70,25 @@ public class QoLConfig
     // already exposes one inside the Play sub-menu, this is a shortcut
     // for users who'd rather skip it).
     public bool enableMainMenuServerBrowser = false;
-    // In-game score/period/clock polish — three independent toggles
-    // so the user can enable just the parts they want.
-    //   * enableScoreboardTextShadow → CSS-like text-shadow on score
-    //     numbers, period label, and the clock.
+    // Game-UI text shadow — single toggle that adds a CSS-like
+    // text-shadow to the in-game score / period / clock labels AND to
+    // every chat message label.
+    public bool enableUiTextShadow = true;
+    // In-game clock polish.
     //   * enableScoreboardMilliseconds → swap MM:SS for MM:SS.mmm on
     //     the clock, interpolated locally between server ticks.
     //   * enableScoreboardClockColor → white→red color lerp over the
     //     last 30s + alpha pulse over the last 5s of a period.
-    public bool enableScoreboardTextShadow  = true;
     public bool enableScoreboardMilliseconds = true;
     public bool enableScoreboardClockColor   = true;
+    // Chat visual options, each independent so a user can mix-and-match.
+    //   * enableChatNoFade → expired messages stay at full opacity
+    //     instead of fading to the .blurred USS state.
+    //   * enableChatTransparentContainer → chat container background
+    //     is forced to fully transparent (overrides vanilla's dark
+    //     panel USS).
+    public bool enableChatNoFade               = true;
+    public bool enableChatTransparentContainer = true;
 
     // Per-server "trust this mod list" memory. Keyed by "ip:port"; value
     // is the sorted, comma-joined list of mod IDs the user previously

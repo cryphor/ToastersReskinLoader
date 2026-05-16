@@ -24,7 +24,10 @@
 //     its own more-specific tooltip, so hovering precisely on it still
 //     shows the badge text instead of the row text.
 //
-// All gated behind cfg.enableServerBrowserSortTweaks. The vanilla
+// Gated per-store behind cfg.enableServerFavorites (★ button + sort
+// favorites to top) and cfg.enableServerBlocks (right-click block +
+// hide blocked rows). Either flag being on activates the shared
+// browser-side scaffolding (sort tweaks, row context-menu). The vanilla
 // `ServerSortType` and `ServerSortDirection` enums are internal — we set
 // their fields via AccessTools and use the raw int values (Name=0,
 // Players=1, Ping=2; Ascending=0, Descending=1).
@@ -52,16 +55,23 @@ internal static class ServerBrowserSort
     private const string TooltipMarkerCls = "toaster-row-tt-hooked";
     private const string HoverTooltipName = "ToasterServerHoverTooltip";
 
-    // Unicode BLACK STAR / WHITE STAR plus the U+FE0E text-presentation
-    // variation selector. The VS-15 suffix tells fonts to render the star
-    // as a text glyph instead of an emoji, so we get a clean monochrome
-    // shape that can be tinted via VisualElement.style.color (emoji
-    // presentation would ignore tint and render as full-color 🌟 / ⭐).
+    // Unicode BLACK STAR / WHITE STAR plus U+FE0E (VS-15) — forces text
+    // presentation so the OS-font fallback picks Segoe UI Symbol's flat
+    // glyph instead of Segoe UI Emoji's color emoji. Without VS-15 the
+    // emoji presentation wins and the star renders as a yellow
+    // pictograph that ignores style.color tinting.
     private const string GlyphStarFilled = "★︎";
     private const string GlyphStarEmpty  = "☆︎";
 
-    private static bool Enabled =>
-        QoLRunner.Instance?.Config?.enableServerBrowserSortTweaks ?? false;
+    private static bool FavoritesEnabled =>
+        QoLRunner.Instance?.Config?.enableServerFavorites ?? false;
+    private static bool BlocksEnabled =>
+        QoLRunner.Instance?.Config?.enableServerBlocks ?? false;
+    // Any browser-side scaffolding (sort patches, row context-menu hook,
+    // row tooltip) activates when EITHER favorites or blocks is on. The
+    // finer-grained gates inside (star button visibility, block-row
+    // hiding) check FavoritesEnabled / BlocksEnabled directly.
+    private static bool Enabled => FavoritesEnabled || BlocksEnabled;
 
     // Mod-title cache so the row tooltip can list required mods by
     // name instead of bare Steam Workshop IDs. Populated lazily:
@@ -293,7 +303,7 @@ internal static class ServerBrowserSort
 
     // ─────────────────────────── live toggle refresh ──────────────────────
     //
-    // The QoL settings row flips cfg.enableServerBrowserSortTweaks, but
+    // The QoL settings rows flip cfg.enableServerFavorites / cfg.enableServerBlocks, but
     // the patched methods only short-circuit on the *next* call. If the
     // browser is already open the user sees the prior frame's mutations
     // (PLAYERS% header, 🔓 badges, stripped passwordProtected class)
@@ -328,6 +338,8 @@ internal static class ServerBrowserSort
                         if (row == null) continue;
                         row.Q<Button>(FavStarName)?.RemoveFromHierarchy();
                         row.Q<Label>(UnlockBadgeName)?.RemoveFromHierarchy();
+                        var nameLbl = row.Q<Label>("NameLabel");
+                        if (nameLbl != null) nameLbl.style.marginLeft = StyleKeyword.Null;
                         row.RemoveFromClassList(RowMarkerClass);
                         row.RemoveFromClassList(TooltipMarkerCls);
                     }
@@ -550,11 +562,19 @@ internal static class ServerBrowserSort
         }
     }
 
+    // Star width budget we reserve via NameLabel.marginLeft when a row
+    // is favorited so the star doesn't visually overlap the server name.
+    // Vanilla NameLabel ignores flex siblings prepended via Insert(0),
+    // so we use an absolute-positioned star + matching marginLeft on
+    // NameLabel instead.
+    private const int StarReservedWidth = 22;
+
     // ─────────────────────────── StyleServer postfix: badges ──────────────
     //
     // Two injections:
-    //   1. ★/☆ favorite button at the start of the row (always present
-    //      so the user can favorite from any row).
+    //   1. ★ favorite button — ONLY rendered on rows that are already
+    //      favorited. Clicking it un-favorites. Adding a NEW favorite
+    //      happens via the right-click context menu (registered below).
     //   2. 🔓 saved-password indicator (when we have a saved entry for
     //      this ip:port). Placed immediately after NameLabel so it sits
     //      directly left of the wrench (modded) icon — mirroring how the
@@ -579,42 +599,57 @@ internal static class ServerBrowserSort
                 var nameLabel = serverRow.Q<Label>("NameLabel");
                 var previewData = GetPreview(__instance, endPoint);
 
-                // Favorite ★/☆ button at the start of the row.
-                var star = serverRow.Q<Button>(FavStarName);
-                if (star == null)
+                // Favorite ★ — only present on favorited rows. The button
+                // is absolute-positioned so it lays on top of the row
+                // without disturbing the flex children; NameLabel gets a
+                // matching marginLeft to keep the server name out from
+                // under the star.
+                var existingStar = serverRow.Q<Button>(FavStarName);
+                if (FavoritesEnabled && IsFavorite(key))
                 {
-                    star = new Button(() =>
+                    if (existingStar == null)
                     {
-                        // Cache the friendly name at click time so the
-                        // management UI can still show "Server Name"
-                        // when the server isn't in the browser list.
-                        string cachedName = GetPreview(__instance, endPoint)?.name ?? "";
-                        ToggleFavorite(key, cachedName);
-                        UpdateStarText(serverRow.Q<Button>(FavStarName), key);
-                        AccessTools.Method(typeof(UIServerBrowser), "SortServers")?.Invoke(__instance, null);
-                    })
-                    {
-                        name = FavStarName,
-                        text = IsFavorite(key) ? GlyphStarFilled : GlyphStarEmpty,
-                    };
-                    star.tooltip = "Favorite this server";
-                    star.style.marginRight = 4;
-                    star.style.paddingLeft = 4;
-                    star.style.paddingRight = 4;
-                    star.style.paddingTop = 0;
-                    star.style.paddingBottom = 0;
-                    star.style.color = new Color(1f, 0.85f, 0.3f);
-                    star.style.unityFontStyleAndWeight = FontStyle.Bold;
-                    star.style.backgroundColor = new Color(0, 0, 0, 0);
-                    star.style.borderTopWidth = 0;
-                    star.style.borderRightWidth = 0;
-                    star.style.borderBottomWidth = 0;
-                    star.style.borderLeftWidth = 0;
-                    serverRow.Insert(0, star);
+                        var star = new Button(() =>
+                        {
+                            string cachedName = GetPreview(__instance, endPoint)?.name ?? "";
+                            ToggleFavorite(key, cachedName);
+                            // Force a row restyle on the next frame so
+                            // the now-unfavorited star vanishes cleanly
+                            // (handled by this same postfix). Mutating
+                            // hierarchy in our own click handler would
+                            // race the click pipeline.
+                            serverRow.schedule.Execute(() =>
+                            {
+                                AccessTools.Method(typeof(UIServerBrowser), "SortServers")?.Invoke(__instance, null);
+                            }).ExecuteLater(0);
+                        })
+                        {
+                            name = FavStarName,
+                            text = GlyphStarFilled,
+                        };
+                        star.tooltip = "Unfavorite";
+                        star.style.position = Position.Absolute;
+                        star.style.left = 4;
+                        star.style.top = 0;
+                        star.style.paddingLeft = 4;
+                        star.style.paddingRight = 4;
+                        star.style.paddingTop = 0;
+                        star.style.paddingBottom = 0;
+                        star.style.color = new Color(1f, 0.85f, 0.3f);
+                        star.style.unityFontStyleAndWeight = FontStyle.Bold;
+                        star.style.backgroundColor = new Color(0, 0, 0, 0);
+                        star.style.borderTopWidth = 0;
+                        star.style.borderRightWidth = 0;
+                        star.style.borderBottomWidth = 0;
+                        star.style.borderLeftWidth = 0;
+                        serverRow.Add(star);
+                    }
+                    if (nameLabel != null) nameLabel.style.marginLeft = StarReservedWidth;
                 }
                 else
                 {
-                    UpdateStarText(star, key);
+                    existingStar?.RemoveFromHierarchy();
+                    if (nameLabel != null) nameLabel.style.marginLeft = StyleKeyword.Null;
                 }
 
                 // Refresh the favorite's cached name when we see the

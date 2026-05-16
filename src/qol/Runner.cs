@@ -53,6 +53,8 @@ public sealed class QoLRunner : MonoBehaviour
         catch (Exception e) { Debug.LogError("[QoL] MainMenuButtons.Initialize failed: " + e); }
         try { ServerBrowserSort.Initialize(); }
         catch (Exception e) { Debug.LogError("[QoL] ServerBrowserSort.Initialize failed: " + e); }
+        try { UiTextShadow.Initialize(); }
+        catch (Exception e) { Debug.LogError("[QoL] UiTextShadow.Initialize failed: " + e); }
     }
 
     private void OnDestroy()
