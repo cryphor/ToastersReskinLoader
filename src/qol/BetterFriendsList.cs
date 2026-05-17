@@ -216,6 +216,127 @@ public static class FriendsListHelper
 
     public static readonly Dictionary<string, FriendInfo> FriendInfoCache = new Dictionary<string, FriendInfo>();
 
+    // Case-insensitive substring filter on username. Empty string = show all.
+    // Persisted across rebuilds so Steam state changes don't drop the filter.
+    private static string _searchFilter = "";
+
+    private static void EnsureSearchField(VisualElement friendsList)
+    {
+        if (friendsList == null) return;
+        const string containerName = "trl-bfl-search-container";
+
+        // Look for the FRIENDS title — search RECURSIVELY in each ancestor's
+        // subtree (the title may be a grandchild, not a direct child), starting
+        // from the "Friends" container that holds the list.
+        Label titleLabel = null;
+        VisualElement titleHost = null;
+        for (var p = friendsList.parent; p != null && titleLabel == null; p = p.parent)
+        {
+            foreach (var lbl in p.Query<Label>().ToList())
+            {
+                if (lbl == null || string.IsNullOrEmpty(lbl.text)) continue;
+                // Skip labels that live inside the friends list itself (those
+                // are friend rows, not the header).
+                bool insideList = false;
+                for (var a = lbl.parent; a != null; a = a.parent)
+                {
+                    if (a == friendsList) { insideList = true; break; }
+                }
+                if (insideList) continue;
+
+                string t = lbl.text.Trim();
+                if (t.StartsWith("Friends", StringComparison.OrdinalIgnoreCase) ||
+                    t.StartsWith("FRIENDS", StringComparison.Ordinal))
+                {
+                    titleLabel = lbl;
+                    titleHost = lbl.parent;
+                    break;
+                }
+            }
+            // Don't walk above the panel root.
+            if (p.parent == null) break;
+        }
+
+        VisualElement insertParent = titleHost ?? friendsList.parent;
+        if (insertParent == null) return;
+        if (insertParent.Q<VisualElement>(containerName) != null) return;
+
+        // Mirror the mod menu's "Filter: [ ___ ]" layout: a row container that
+        // grows to fill and pushes its contents right.
+        var searchContainer = new VisualElement();
+        searchContainer.name = containerName;
+        searchContainer.style.flexDirection = FlexDirection.Row;
+        searchContainer.style.alignItems = Align.Center;
+        searchContainer.style.flexGrow = 1;
+        searchContainer.style.justifyContent = Justify.FlexEnd;
+        searchContainer.style.marginRight = 8;
+
+        var searchLabel = new Label("Filter:");
+        searchLabel.style.fontSize = 16;
+        searchLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+        searchLabel.style.marginRight = 6;
+        searchContainer.Add(searchLabel);
+
+        var field = new TextField();
+        field.value = _searchFilter;
+        field.style.width = 200;
+        field.style.fontSize = 16;
+        field.RegisterCallback<AttachToPanelEvent>(_ =>
+        {
+            ToasterReskinLoader.qol.VanillaUIRetheme.RecolorTree(field);
+            var input = field.Q(className: "unity-base-text-field__input");
+            if (input != null)
+            {
+                input.style.backgroundColor = new StyleColor(new Color(0.15f, 0.15f, 0.15f));
+                input.style.color = Color.white;
+                input.style.paddingLeft = 8;
+                input.style.paddingRight = 8;
+                input.style.paddingTop = 4;
+                input.style.paddingBottom = 4;
+            }
+        });
+        field.RegisterCallback<ChangeEvent<string>>(evt =>
+        {
+            _searchFilter = evt.newValue ?? "";
+            ApplyFilter(friendsList);
+        });
+        searchContainer.Add(field);
+
+        if (titleLabel != null && titleHost != null)
+        {
+            // The host might be column-laid-out by vanilla; force it to row so
+            // the search container sits next to the FRIENDS label instead of
+            // dropping below it. Keep cross-axis centered to vertically align.
+            titleHost.style.flexDirection = FlexDirection.Row;
+            titleHost.style.alignItems = Align.Center;
+            int titleIdx = titleHost.IndexOf(titleLabel);
+            titleHost.Insert(titleIdx + 1, searchContainer);
+        }
+        else
+        {
+            int listIdx = insertParent.IndexOf(friendsList);
+            insertParent.Insert(Math.Max(0, listIdx), searchContainer);
+        }
+    }
+
+    private static void ApplyFilter(VisualElement friendsList)
+    {
+        if (friendsList == null) return;
+        string q = (_searchFilter ?? "").Trim();
+        bool empty = q.Length == 0;
+        foreach (var child in friendsList.Children())
+        {
+            string username = null;
+            // The row template's first label child holds the friend's display name.
+            var lbl = child.Q<Label>();
+            if (lbl != null) username = lbl.text;
+            bool match = empty
+                || (!string.IsNullOrEmpty(username)
+                    && username.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0);
+            child.style.display = match ? DisplayStyle.Flex : DisplayStyle.None;
+        }
+    }
+
     public static void RebuildFriendsList(UIFriendsController controller)
     {
         var uiFriends = BetterFriendsList.UIFriendsController_uiFriends
@@ -328,6 +449,9 @@ public static class FriendsListHelper
                 }
             }
         }
+
+        EnsureSearchField(friendsList);
+        ApplyFilter(friendsList);
 
         if (needsServerNames && !_refreshInProgress)
         {
