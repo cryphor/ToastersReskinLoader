@@ -135,7 +135,10 @@ internal static class ServerPreviewCachePatches
 
                 UpdateCacheCountLabel();
 
-                int hits = 0;
+                // Pass 1: seed previews. Each _setPreview triggers our own
+                // SetServerPreviewData postfix which removes that endpoint
+                // from the stale set, so we add to stale AFTER all seeds.
+                List<EndPoint> seeded = null;
                 foreach (var ep in endPoints)
                 {
                     if (ep == null) continue;
@@ -150,16 +153,21 @@ internal static class ServerPreviewCachePatches
                         clientRequiredModIds = cached.clientRequiredModIds ?? Array.Empty<string>(),
                         ping = cached.lastPingMs,
                     };
-                    // Order matters: SetServerPreviewData triggers our own
-                    // postfix which would *remove* the endpoint from the
-                    // stale set (treating the seed as a "live" response).
-                    // Add to the stale set AFTER the seed call but BEFORE
-                    // StyleServer, so StyleServer's postfix sees it as stale
-                    // and applies the "?/maxPlayers" + "?" mask.
                     _setPreview?.Invoke(__instance, ep, synth);
-                    lock (_staleLock) _staleEndpoints.Add(ep);
-                    _styleServer?.Invoke(__instance, ep);
-                    hits++;
+                    (seeded ??= new List<EndPoint>()).Add(ep);
+                }
+
+                int hits = seeded?.Count ?? 0;
+                if (hits > 0)
+                {
+                    // Single-lock bulk-add to the stale set, then style each
+                    // row so StyleServer's postfix sees it as stale and
+                    // applies the "?/maxPlayers" + "?" mask.
+                    lock (_staleLock)
+                    {
+                        foreach (var ep in seeded) _staleEndpoints.Add(ep);
+                    }
+                    foreach (var ep in seeded) _styleServer?.Invoke(__instance, ep);
                 }
 
                 if (hits > 0)

@@ -295,26 +295,39 @@ public static class FriendsListHelper
         friendsMap = BetterFriendsList.UIFriends_friendsMap
             .GetValue(uiFriends) as Dictionary<string, TemplateContainer>;
 
+        // Walk friends once: render status labels and detect missing server
+        // previews in the same pass so LookupServerPreview (and its lock) is
+        // only hit once per friend.
+        bool needsServerNames = false;
         if (friendsMap != null)
         {
             foreach (var friend in friends)
             {
-                if (!friendsMap.ContainsKey(friend.SteamId))
-                    continue;
-
-                var container = friendsMap[friend.SteamId];
                 ServerPreviewData cachedPreview = null;
-                if (friend.Presence != null && !string.IsNullOrEmpty(friend.Presence.PlayerGroup))
+                bool hasGroup = friend.Presence != null && !string.IsNullOrEmpty(friend.Presence.PlayerGroup);
+                if (hasGroup)
                     cachedPreview = LookupServerPreview(friend.Presence.PlayerGroup);
 
-                AddStatusLabels(container, friend, cachedPreview);
+                if (friend.IsInPuck && hasGroup && cachedPreview == null)
+                    needsServerNames = true;
+
+                if (friendsMap.TryGetValue(friend.SteamId, out var container))
+                    AddStatusLabels(container, friend, cachedPreview);
             }
         }
-
-        bool needsServerNames = friends.Any(f =>
-            f.IsInPuck && f.Presence != null &&
-            !string.IsNullOrEmpty(f.Presence.PlayerGroup) &&
-            LookupServerPreview(f.Presence.PlayerGroup) == null);
+        else
+        {
+            foreach (var f in friends)
+            {
+                if (f.IsInPuck && f.Presence != null &&
+                    !string.IsNullOrEmpty(f.Presence.PlayerGroup) &&
+                    LookupServerPreview(f.Presence.PlayerGroup) == null)
+                {
+                    needsServerNames = true;
+                    break;
+                }
+            }
+        }
 
         if (needsServerNames && !_refreshInProgress)
         {

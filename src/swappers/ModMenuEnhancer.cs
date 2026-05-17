@@ -64,6 +64,8 @@ namespace ToasterReskinLoader.swappers
 
         private static Button enabledTab, allTab, pluginsTab, resourceTab;
         private static Button sortButton;
+        private static VisualElement restartBanner;
+        private static bool modListChangedThisSession;
 
         // Snapshot of all entry→element pairs from both maps.
         // Keys are either Mod or Plugin instances.
@@ -214,6 +216,41 @@ namespace ToasterReskinLoader.swappers
             if (scrollIdx >= 0)
                 content.Insert(scrollIdx, tabRow);
 
+            // ── Restart-recommended banner — hidden until the user toggles or updates a mod ──
+            restartBanner = new VisualElement();
+            restartBanner.name = "trl-restart-banner";
+            restartBanner.style.flexDirection = FlexDirection.Row;
+            restartBanner.style.alignItems = Align.Center;
+            restartBanner.style.marginLeft = 8;
+            restartBanner.style.marginRight = 8;
+            restartBanner.style.marginBottom = 6;
+            restartBanner.style.paddingTop = 10;
+            restartBanner.style.paddingBottom = 10;
+            restartBanner.style.paddingLeft = 14;
+            restartBanner.style.paddingRight = 14;
+            restartBanner.style.backgroundColor = new StyleColor(new Color(0.45f, 0.3f, 0.1f, 0.85f));
+            restartBanner.style.borderLeftWidth = 4;
+            restartBanner.style.borderLeftColor = new StyleColor(new Color(1f, 0.7f, 0.2f));
+            restartBanner.style.borderTopLeftRadius = 4;
+            restartBanner.style.borderTopRightRadius = 4;
+            restartBanner.style.borderBottomLeftRadius = 4;
+            restartBanner.style.borderBottomRightRadius = 4;
+            restartBanner.style.display = DisplayStyle.None;
+
+            var bannerLabel = new Label("We strongly recommend restarting your game after changing your mod list.");
+            bannerLabel.style.color = Color.white;
+            bannerLabel.style.fontSize = 15;
+            bannerLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+            bannerLabel.style.whiteSpace = WhiteSpace.Normal;
+            bannerLabel.style.flexGrow = 1;
+            restartBanner.Add(bannerLabel);
+
+            int tabIdx = content.IndexOf(tabRow);
+            if (tabIdx >= 0)
+                content.Insert(tabIdx, restartBanner);
+            else
+                content.Insert(0, restartBanner);
+
             // ── Footer buttons — Open Logs and Open Config, on the left side ──
             // The footer is the 3rd child of Mods (after Header and Content)
             if (mods.childCount >= 3)
@@ -321,7 +358,22 @@ namespace ToasterReskinLoader.swappers
 
                 UpdateCounts();
                 ApplyFilters();
+                RefreshRestartBanner();
             }
+        }
+
+        private static void MarkModListChanged()
+        {
+            modListChangedThisSession = true;
+            RefreshRestartBanner();
+        }
+
+        private static void RefreshRestartBanner()
+        {
+            if (restartBanner == null) return;
+            restartBanner.style.display = modListChangedThisSession
+                ? DisplayStyle.Flex
+                : DisplayStyle.None;
         }
 
         private static Button CreateTabButton(string label, string filter)
@@ -433,7 +485,7 @@ namespace ToasterReskinLoader.swappers
             ToasterReskinLoader.Plugin.Log($"[ModMenuEnhancer] ApplyFilters: filter='{activeFilter}', search='{search}', total={allEntries.Count}, visible={visible.Count}");
 
             if (sortAlphabetical)
-                visible = visible.OrderBy(kvp => GetTitle(kvp.Key)).ToList();
+                visible.Sort(static (a, b) => string.Compare(GetTitle(a.Key), GetTitle(b.Key), StringComparison.CurrentCulture));
 
             foreach (var kvp in allEntries)
                 kvp.Value.RemoveFromHierarchy();
@@ -558,7 +610,11 @@ namespace ToasterReskinLoader.swappers
                         int toggleIdx = toggle.parent.IndexOf(toggle);
                         toggle.parent.Insert(toggleIdx, stateLabel);
 
-                        toggle.RegisterValueChangedCallback(evt => UpdateStateLabel(stateLabel, evt.newValue));
+                        toggle.RegisterValueChangedCallback(evt =>
+                        {
+                            UpdateStateLabel(stateLabel, evt.newValue);
+                            MarkModListChanged();
+                        });
                     }
                     UpdateStateLabel(stateLabel, toggle.value);
                 }
@@ -688,12 +744,42 @@ namespace ToasterReskinLoader.swappers
 
         private static void ShrinkStatistics(VisualElement statistics)
         {
+            const float IconSize = 14f;
+
             statistics.style.fontSize = 10;
-            foreach (var label in statistics.Query<Label>().ToList())
+            statistics.Query<Label>().ForEach(label =>
             {
                 label.style.fontSize = 10;
                 label.style.color = new Color(0.7f, 0.7f, 0.7f);
-            }
+            });
+
+            statistics.Query<Image>().ForEach(img =>
+            {
+                img.style.width = IconSize;
+                img.style.height = IconSize;
+                img.style.maxWidth = IconSize;
+                img.style.maxHeight = IconSize;
+                img.style.minWidth = 0;
+                img.style.minHeight = 0;
+            });
+
+            // Many UI Toolkit "icons" are plain VisualElements with a background image.
+            // Shrink any descendant whose backgroundImage is set and which has no children
+            // (so we don't accidentally squash a container).
+            statistics.Query<VisualElement>().ForEach(ve =>
+            {
+                if (ve == statistics || ve is Label || ve is Image) return;
+                if (ve.childCount != 0) return;
+                var bg = ve.resolvedStyle.backgroundImage;
+                if (bg.texture == null && bg.sprite == null && bg.vectorImage == null) return;
+
+                ve.style.width = IconSize;
+                ve.style.height = IconSize;
+                ve.style.maxWidth = IconSize;
+                ve.style.maxHeight = IconSize;
+                ve.style.minWidth = 0;
+                ve.style.minHeight = 0;
+            });
         }
 
         // ── Workshop update check ────────────────────────────────────
@@ -789,6 +875,7 @@ namespace ToasterReskinLoader.swappers
             {
                 if (ok)
                 {
+                    MarkModListChanged();
                     string title = GetTitleForId(itemId) ?? $"mod {itemId}";
                     // Re-query so the local timestamp updates and the button flips
                     // to "Up to date".

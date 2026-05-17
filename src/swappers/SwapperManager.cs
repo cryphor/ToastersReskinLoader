@@ -191,6 +191,7 @@ public static class SwapperManager
     public static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
         Plugin.Log($"OnSceneLoaded: {scene.name}");
+        ToasterReskinLoader.qol.ArenaVisuals.InvalidateCache();
         if (scene.name.Equals("locker_room"))
         {
             StickTapeSwapper.ClearTapeCache();
