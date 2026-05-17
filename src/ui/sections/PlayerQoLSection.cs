@@ -239,6 +239,11 @@ public static class PlayerQoLSection
         ToggleRow(contentScrollViewContent, "Enable in-game dev console", cfg.enableDevConsole,
             v => { cfg.enableDevConsole = v; runner.SaveAndRefresh(); });
 
+        ToggleRow(contentScrollViewContent,
+            "Enable frame profiler (F3 overlay / F4 mode / F5 CSV) — requires restart",
+            cfg.enableFrameProfiler,
+            v => { cfg.enableFrameProfiler = v; runner.SaveAndRefresh(); });
+
         var devButtonsRow = UITools.CreateConfigurationRow();
         devButtonsRow.style.justifyContent = Justify.FlexStart;
         var openConsoleBtn = new Button(() =>

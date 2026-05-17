@@ -77,6 +77,9 @@ public class QoLConfig
     // Debug + dev console
     public bool enableDebugLogging = false;
     public bool enableDevConsole = false;
+    // Frame timing / stutter profiler (overlay + Harmony instrumentation).
+    // Off by default — only useful for diagnosing perf issues.
+    public bool enableFrameProfiler = false;
     // Persisted dev console window position/size
     public float devConsoleX = 40f;
     public float devConsoleY = 40f;
