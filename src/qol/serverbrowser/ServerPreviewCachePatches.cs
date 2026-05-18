@@ -30,6 +30,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using HarmonyLib;
+using ToasterReskinLoader.qol.beacon;
 using UnityEngine.UIElements;
 
 namespace ToasterReskinLoader.qol.serverbrowser;
@@ -197,6 +198,9 @@ internal static class ServerPreviewCachePatches
     [HarmonyPatch(typeof(UIServerBrowser), "SetServerPreviewData")]
     private static class Patch_SetServerPreviewData
     {
+        // May be invoked from vanilla's async ping wave on a background
+        // thread — keep cache mutation (lock-protected) inline but marshal
+        // the cache-count label refresh to the main thread.
         [HarmonyPostfix]
         static void Postfix(EndPoint endPoint, ServerPreviewData previewData)
         {
@@ -206,11 +210,12 @@ internal static class ServerPreviewCachePatches
                 bool wasStale;
                 lock (_staleLock) wasStale = _staleEndpoints.Remove(endPoint);
 
+                bool cacheChanged = false;
                 if (previewData != null)
                 {
                     ServerPreviewCache.Upsert(endPoint, previewData);
                     MaybeFlush();
-                    UpdateCacheCountLabel();
+                    cacheChanged = true;
                 }
                 else if (wasStale)
                 {
@@ -218,8 +223,10 @@ internal static class ServerPreviewCachePatches
                     // don't keep showing it on subsequent opens.
                     ServerPreviewCache.Evict(endPoint);
                     MaybeFlush();
-                    UpdateCacheCountLabel();
+                    cacheChanged = true;
                 }
+
+                if (cacheChanged) BeaconMainThread.Run(UpdateCacheCountLabel);
             }
             catch (Exception e)
             {
@@ -284,6 +291,13 @@ internal static class ServerPreviewCachePatches
     [HarmonyPatch(typeof(UIServerBrowser), "PingServer")]
     private static class Patch_PingServer
     {
+        // PingServer runs on a ThreadPool worker (vanilla wraps it in Task.Run
+        // inside UpdateEndPoints), so this postfix executes on a background
+        // thread. UIElements is not thread-safe — touching button/label state
+        // from here is what corrupts the panel's pick cache and kills mouse
+        // input across the whole game until restart. Counter increments and
+        // cache mutation stay on the worker (thread-safe under their own
+        // locks); every UIElements touch is marshalled to the main thread.
         [HarmonyPostfix]
         static void Postfix(UIServerBrowser __instance, EndPoint endPoint, ServerPreviewData __result)
         {
@@ -291,21 +305,17 @@ internal static class ServerPreviewCachePatches
             try
             {
                 int total = Volatile.Read(ref _refreshTotal);
+                int doneForUi = 0;
+                bool publishProgress = false;
                 if (total > 0)
                 {
                     int done = Interlocked.Increment(ref _refreshDone);
                     if (done > total) done = total;
-                    UpdateRefreshButton(done, total);
+                    doneForUi = done;
+                    publishProgress = true;
                 }
 
-                // Failed ping for a row we seeded from cache: drop the
-                // stale-set tracking and evict the cache entry. Do NOT
-                // call SetServerPreviewData/StyleServer reentrantly here —
-                // vanilla calls SetServerPreviewData(null) itself right
-                // after PingServer returns, and a duplicate reentrant call
-                // throws inside UIElements layout/repaint, which leaves the
-                // panel's pick cache permanently dead (mouse stops working
-                // across all menus until the game is restarted).
+                bool cacheChanged = false;
                 if (__result == null && endPoint != null)
                 {
                     bool wasStale;
@@ -314,8 +324,21 @@ internal static class ServerPreviewCachePatches
                     {
                         ServerPreviewCache.Evict(endPoint);
                         MaybeFlush();
-                        UpdateCacheCountLabel();
+                        cacheChanged = true;
                     }
+                }
+
+                if (publishProgress || cacheChanged)
+                {
+                    int doneCapture = doneForUi;
+                    int totalCapture = total;
+                    bool progressCapture = publishProgress;
+                    bool cacheCapture = cacheChanged;
+                    BeaconMainThread.Run(() =>
+                    {
+                        if (progressCapture) UpdateRefreshButton(doneCapture, totalCapture);
+                        if (cacheCapture) UpdateCacheCountLabel();
+                    });
                 }
             }
             catch (Exception e)
