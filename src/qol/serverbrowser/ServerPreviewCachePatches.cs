@@ -298,12 +298,14 @@ internal static class ServerPreviewCachePatches
                     UpdateRefreshButton(done, total);
                 }
 
-                // Failed ping for a row we seeded from cache: clear the
-                // synthetic preview ourselves so the row falls back to
-                // vanilla's "unreachable IP:port" rendering. If vanilla's
-                // async loop *also* calls SetServerPreviewData(null), the
-                // second clear is harmless — our SetServerPreviewData
-                // postfix's wasStale check will already be false.
+                // Failed ping for a row we seeded from cache: drop the
+                // stale-set tracking and evict the cache entry. Do NOT
+                // call SetServerPreviewData/StyleServer reentrantly here —
+                // vanilla calls SetServerPreviewData(null) itself right
+                // after PingServer returns, and a duplicate reentrant call
+                // throws inside UIElements layout/repaint, which leaves the
+                // panel's pick cache permanently dead (mouse stops working
+                // across all menus until the game is restarted).
                 if (__result == null && endPoint != null)
                 {
                     bool wasStale;
@@ -313,8 +315,6 @@ internal static class ServerPreviewCachePatches
                         ServerPreviewCache.Evict(endPoint);
                         MaybeFlush();
                         UpdateCacheCountLabel();
-                        _setPreview?.Invoke(__instance, endPoint, null);
-                        _styleServer?.Invoke(__instance, endPoint);
                     }
                 }
             }
