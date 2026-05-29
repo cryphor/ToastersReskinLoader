@@ -410,6 +410,50 @@ public static class UITools
     }
 
     /// <summary>
+    /// Creates a number-outline configuration section: a color picker plus a width slider
+    /// (0..1, 0 = off). The width slider fires onWidthChanged continuously and onSave on
+    /// pointer-up. The color picker uses the same callback pattern as CreateColorConfigurationRow.
+    /// </summary>
+    public static VisualElement CreateNumberOutlineConfigurationRow(
+        string label,
+        Color initialColor,
+        float initialWidth,
+        Action<Color> onColorChanged,
+        Action<float> onWidthChanged,
+        Action onSave
+    )
+    {
+        var container = new VisualElement();
+        container.style.flexDirection = FlexDirection.Column;
+        container.style.marginBottom = 10;
+
+        var colorSection = CreateColorConfigurationRow(
+            label,
+            initialColor,
+            false,
+            onColorChanged,
+            onSave
+        );
+        container.Add(colorSection);
+
+        var widthRow = CreateConfigurationRow();
+        var widthLabel = CreateConfigurationLabel("Outline Width");
+        widthLabel.style.marginLeft = 20;
+        widthRow.Add(widthLabel);
+        var widthSlider = CreateConfigurationSlider(0f, 1f, Mathf.Clamp01(initialWidth), 300);
+        widthSlider.RegisterCallback<ChangeEvent<float>>(evt =>
+        {
+            onWidthChanged?.Invoke(evt.newValue);
+            onSave?.Invoke();
+        });
+        widthSlider.RegisterCallback<PointerUpEvent>(evt => onSave?.Invoke());
+        widthRow.Add(widthSlider);
+        container.Add(widthRow);
+
+        return container;
+    }
+
+    /// <summary>
     /// Enables or disables a list of controls with a visual opacity change.
     /// Used by sections with a master toggle that grays out dependent controls.
     /// </summary>
