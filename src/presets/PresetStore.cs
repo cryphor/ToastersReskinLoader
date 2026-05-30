@@ -45,6 +45,37 @@ public static class PresetStore
         return result.OrderBy(p => p.PresetName, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
+    /// Presets bundled inside installed packs (<pack>/presets/*.json), read-only. Sorted by name.
+    public static List<Preset> LoadPackPresets()
+    {
+        var result = new List<Preset>();
+
+        foreach (var pack in ReskinRegistry.reskinPacks)
+        {
+            if (string.IsNullOrEmpty(pack.FolderPath)) continue;
+            string dir = Path.Combine(pack.FolderPath, "presets");
+            if (!Directory.Exists(dir)) continue;
+
+            foreach (var path in Directory.GetFiles(dir, "*.json"))
+            {
+                var preset = LoadFile(path, $"Pack: {pack.Name}", readOnly: true);
+                if (preset != null) result.Add(preset);
+            }
+        }
+
+        return result.OrderBy(p => p.PresetName, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    /// Local packs (workshop id 0) the user can save presets into, as (label, presetsDir) pairs.
+    /// Workshop packs are excluded — Steam overwrites them on update.
+    public static List<(string Label, string Dir)> GetLocalPackTargets()
+    {
+        return ReskinRegistry.reskinPacks
+            .Where(p => p.WorkshopId == 0 && !string.IsNullOrEmpty(p.FolderPath))
+            .Select(p => ($"Pack: {p.Name}", Path.Combine(p.FolderPath, "presets")))
+            .ToList();
+    }
+
     public static Preset LoadFile(string path, string sourceLabel, bool readOnly)
     {
         try

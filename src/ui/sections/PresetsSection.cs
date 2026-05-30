@@ -102,8 +102,10 @@ public static class PresetsSection
         actions.Add(folderBtn);
         _root.Add(actions);
 
-        var presets = PresetStore.LoadUserPresets();
-        if (presets.Count == 0)
+        var userPresets = PresetStore.LoadUserPresets();
+        var packPresets = PresetStore.LoadPackPresets();
+
+        if (userPresets.Count == 0 && packPresets.Count == 0)
         {
             var empty = UITools.CreateConfigurationLabel(
                 "No presets yet. Set up your reskins, then click \"Save current as preset\".");
@@ -113,8 +115,30 @@ public static class PresetsSection
             return;
         }
 
-        foreach (var preset in presets)
-            _root.Add(BuildPresetRow(preset));
+        // Only show group headings when both sources are present.
+        bool showHeadings = userPresets.Count > 0 && packPresets.Count > 0;
+
+        if (userPresets.Count > 0)
+        {
+            if (showHeadings) _root.Add(GroupHeading("My Presets"));
+            foreach (var preset in userPresets) _root.Add(BuildPresetRow(preset));
+        }
+
+        if (packPresets.Count > 0)
+        {
+            if (showHeadings) _root.Add(GroupHeading("From Packs"));
+            foreach (var preset in packPresets) _root.Add(BuildPresetRow(preset));
+        }
+    }
+
+    private static Label GroupHeading(string text)
+    {
+        var label = UITools.CreateConfigurationLabel(text);
+        label.style.fontSize = 18;
+        label.style.unityFontStyleAndWeight = FontStyle.Bold;
+        label.style.marginTop = 10;
+        label.style.marginBottom = 4;
+        return label;
     }
 
     private static VisualElement BuildPresetRow(Preset preset)
@@ -176,6 +200,7 @@ public static class PresetsSection
 
         var meta = new List<string> { $"{preset.FieldIds.Count()} setting(s)" };
         if (preset.IsTeamScoped) meta.Add($"team preset ({preset.TeamScoped})");
+        if (preset.IsReadOnly && !string.IsNullOrEmpty(preset.SourceLabel)) meta.Add(preset.SourceLabel);
         var missing = PresetStore.GetMissingDependencies(preset);
         var metaLabel = UITools.CreateConfigurationLabel(string.Join("  •  ", meta));
         metaLabel.style.fontSize = 12;
@@ -215,27 +240,31 @@ public static class PresetsSection
         });
         right.Add(applyBtn);
 
-        var renameBtn = new Button { text = "Rename" };
-        UITools.StyleConfigButton(renameBtn);
-        renameBtn.style.marginRight = 6;
-        renameBtn.RegisterCallback<ClickEvent>(_ => { _renamingPath = preset.FilePath; RenderList(); });
-        right.Add(renameBtn);
-
-        var deleteBtn = new Button { text = _confirmDeletePath == preset.FilePath ? "Confirm?" : "Delete" };
-        UITools.StyleConfigButton(deleteBtn);
-        deleteBtn.RegisterCallback<ClickEvent>(_ =>
+        // Pack presets are read-only — apply only, no rename/delete.
+        if (!preset.IsReadOnly)
         {
-            if (_confirmDeletePath != preset.FilePath)
+            var renameBtn = new Button { text = "Rename" };
+            UITools.StyleConfigButton(renameBtn);
+            renameBtn.style.marginRight = 6;
+            renameBtn.RegisterCallback<ClickEvent>(_ => { _renamingPath = preset.FilePath; RenderList(); });
+            right.Add(renameBtn);
+
+            var deleteBtn = new Button { text = _confirmDeletePath == preset.FilePath ? "Confirm?" : "Delete" };
+            UITools.StyleConfigButton(deleteBtn);
+            deleteBtn.RegisterCallback<ClickEvent>(_ =>
             {
-                _confirmDeletePath = preset.FilePath;
+                if (_confirmDeletePath != preset.FilePath)
+                {
+                    _confirmDeletePath = preset.FilePath;
+                    RenderList();
+                    return;
+                }
+                PresetStore.Delete(preset);
+                _confirmDeletePath = null;
                 RenderList();
-                return;
-            }
-            PresetStore.Delete(preset);
-            _confirmDeletePath = null;
-            RenderList();
-        });
-        right.Add(deleteBtn);
+            });
+            right.Add(deleteBtn);
+        }
 
         topRow.Add(right);
         container.Add(topRow);
@@ -297,6 +326,23 @@ public static class PresetsSection
         nameRow.Add(nameField);
         _root.Add(nameRow);
 
+        // Destination: My Presets, or a local pack's presets/ folder (pack-authoring).
+        var destinations = new Dictionary<string, string> { { PresetStore.SourceUser, null } };
+        foreach (var (label, dir) in PresetStore.GetLocalPackTargets())
+            destinations[label] = dir;
+
+        PopupField<string> destField = null;
+        if (destinations.Count > 1)
+        {
+            var destRow = UITools.CreateRow();
+            destRow.style.marginBottom = 10;
+            destRow.Add(UITools.CreateConfigurationLabel("Save to:"));
+            destField = UITools.CreateStringDropdownField(destinations.Keys.ToList(), PresetStore.SourceUser);
+            destField.style.marginLeft = 8;
+            destRow.Add(destField);
+            _root.Add(destRow);
+        }
+
         // quick-fill buttons
         var quick = new VisualElement();
         quick.style.flexDirection = FlexDirection.Row;
@@ -334,8 +380,10 @@ public static class PresetsSection
                 return;
             }
             var preset = PresetBuilder.FromProfile(ReskinProfileManager.currentProfile, selected, nameField.value.Trim());
-            PresetStore.Save(preset);
-            Toast("Saved", $"Preset \"{preset.PresetName}\" saved ({selected.Count} setting(s)).");
+            string targetDir = destField != null && destinations.TryGetValue(destField.value, out var d) ? d : null;
+            PresetStore.Save(preset, targetDir);
+            string where = destField != null ? destField.value : PresetStore.SourceUser;
+            Toast("Saved", $"Preset \"{preset.PresetName}\" saved to {where} ({selected.Count} setting(s)).");
             RenderList();
         });
         btnRow.Add(save);
