@@ -21,6 +21,12 @@ public static class PucksSection
         List<ReskinRegistry.ReskinEntry> dropdownPuckReskins = new List<ReskinRegistry.ReskinEntry>();
         var activePucks = ReskinProfileManager.currentProfile.puckList ?? new List<ReskinRegistry.ReskinEntry>();
 
+        // Offer the vanilla Default puck as a first-class option (unless it's already in the list)
+        if (!activePucks.Any(p => ReskinProfileManager.IsDefaultPuckEntry(p)))
+        {
+            dropdownPuckReskins.Add(defaultEntry);
+        }
+
         foreach (var puck in allPuckReskins)
         {
             // Only add to dropdown if not already in active list
@@ -42,6 +48,10 @@ public static class PucksSection
         description.style.fontSize = 12;
         description.style.marginBottom = 16;
         contentScrollViewContent.Add(description);
+
+        // Locker-room 3D preview of the active list, with a motion-style switcher.
+        BuildPreviewControls(contentScrollViewContent);
+        PuckPreview.Show();
 
         // Puck selection dropdown + Add button
         VisualElement puckSelectionRow = UITools.CreateConfigurationRow();
@@ -76,13 +86,15 @@ public static class PucksSection
         addButton.RegisterCallback<ClickEvent>(evt =>
         {
             ReskinRegistry.ReskinEntry chosen = puckDropdown.value;
-            if (chosen != null && chosen.Path != null) // Don't add null entries
+            // Allow real puck skins (Path set) and the vanilla Default puck; reject empty selections.
+            if (chosen != null && (chosen.Path != null || ReskinProfileManager.IsDefaultPuckEntry(chosen)))
             {
                 ReskinProfileManager.AddPuckToRandomizer(chosen);
                 // Rebuild dropdown to exclude newly added puck
                 RefreshPuckDropdown(puckDropdown);
                 puckDropdown.value = puckDropdown.choices.Count > 0 ? puckDropdown.choices[0] : defaultEntry;
                 RefreshRandomizerList(contentScrollViewContent, dropdownPuckReskins);
+                PuckPreview.Refresh();
             }
         });
         puckSelectionRow.Add(addButton);
@@ -104,6 +116,66 @@ public static class PucksSection
         contentScrollViewContent.Add(bumpMapNoticeLabel);
     }
 
+    // Motion-style switcher for the locker-room preview. Only meaningful in the main menu.
+    private static void BuildPreviewControls(VisualElement contentScrollViewContent)
+    {
+        if (!ChangingRoomHelper.IsInMainMenu()) return;
+
+        VisualElement previewRow = UITools.CreateConfigurationRow();
+        previewRow.style.alignItems = Align.Center;
+        previewRow.style.marginBottom = 12;
+
+        Label previewLabel = UITools.CreateConfigurationLabel("Preview Motion");
+        previewLabel.style.marginRight = 8;
+        previewRow.Add(previewLabel);
+
+        var buttons = new Dictionary<PuckPreviewMode, Button>();
+
+        void Restyle()
+        {
+            foreach (var kvp in buttons)
+            {
+                bool active = kvp.Key == PuckPreview.Mode;
+                kvp.Value.style.backgroundColor = new StyleColor(active
+                    ? new Color(0.7f, 0.7f, 0.7f)
+                    : new Color(0.25f, 0.25f, 0.25f, 0.5f));
+                kvp.Value.style.color = active ? Color.black : Color.white;
+            }
+        }
+
+        void AddModeButton(string text, PuckPreviewMode mode)
+        {
+            Button b = new Button
+            {
+                text = text,
+                style =
+                {
+                    unityTextAlign = TextAnchor.MiddleCenter,
+                    fontSize = 14,
+                    paddingTop = 4,
+                    paddingBottom = 4,
+                    paddingLeft = 10,
+                    paddingRight = 10,
+                    marginLeft = 6,
+                }
+            };
+            b.RegisterCallback<ClickEvent>(_ =>
+            {
+                PuckPreview.SetMode(mode);
+                Restyle();
+            });
+            buttons[mode] = b;
+            previewRow.Add(b);
+        }
+
+        AddModeButton("Row", PuckPreviewMode.Row);
+        AddModeButton("Carousel", PuckPreviewMode.Carousel);
+        AddModeButton("Drop", PuckPreviewMode.Drop);
+        Restyle();
+
+        contentScrollViewContent.Add(previewRow);
+    }
+
     private static void RefreshPuckDropdown(PopupField<ReskinRegistry.ReskinEntry> puckDropdown)
     {
         List<ReskinRegistry.ReskinEntry> allPuckReskins = ReskinRegistry.GetReskinEntriesByType("puck");
@@ -111,6 +183,12 @@ public static class PucksSection
 
         // Rebuild dropdown choices to exclude pucks in active list
         List<ReskinRegistry.ReskinEntry> dropdownPuckReskins = new List<ReskinRegistry.ReskinEntry>();
+
+        if (!activePucks.Any(p => ReskinProfileManager.IsDefaultPuckEntry(p)))
+        {
+            dropdownPuckReskins.Add(ReskinProfileManager.CreateDefaultPuckEntry());
+        }
+
         foreach (var puck in allPuckReskins)
         {
             if (!activePucks.Any(p => p?.Path == puck.Path))
@@ -181,6 +259,7 @@ public static class PucksSection
                 // Note: RefreshPuckDropdown would need access to the dropdown from here
                 // For now, the UI will update on next section refresh
                 RefreshRandomizerList(contentScrollViewContent, puckReskins);
+                PuckPreview.Refresh();
             });
             puckItemRow.Add(removeButton);
 

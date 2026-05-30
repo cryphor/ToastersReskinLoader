@@ -126,6 +126,16 @@ public class QoLProfile
     public int ShadowCascadeCount { get; set; } = 4;
     [JsonProperty("shadowSoftShadows")]
     public bool ShadowSoftShadows { get; set; } = true;
+    [JsonProperty("glossRemoverEnabled")]
+    public bool GlossRemoverEnabled { get; set; } = false;
+    [JsonProperty("glossSmoothness")]
+    public float GlossSmoothness { get; set; } = 0.5f;
+    [JsonProperty("glossAffectSticks")]
+    public bool GlossAffectSticks { get; set; } = true;
+    [JsonProperty("glossAffectPlayers")]
+    public bool GlossAffectPlayers { get; set; } = true;
+    [JsonProperty("glossAffectPucks")]
+    public bool GlossAffectPucks { get; set; } = true;
     [JsonProperty("displaySettingsMigrated")]
     public bool DisplaySettingsMigrated { get; set; } = false;
 
@@ -183,6 +193,11 @@ public class QoLProfile
             shadowDistance = ShadowDistance,
             shadowCascadeCount = ShadowCascadeCount,
             shadowSoftShadows = ShadowSoftShadows,
+            glossRemoverEnabled = GlossRemoverEnabled,
+            glossSmoothness = GlossSmoothness,
+            glossAffectSticks = GlossAffectSticks,
+            glossAffectPlayers = GlossAffectPlayers,
+            glossAffectPucks = GlossAffectPucks,
             displaySettingsMigrated = DisplaySettingsMigrated,
         };
     }
@@ -240,6 +255,11 @@ public class QoLProfile
         ShadowDistance = c.shadowDistance;
         ShadowCascadeCount = c.shadowCascadeCount;
         ShadowSoftShadows = c.shadowSoftShadows;
+        GlossRemoverEnabled = c.glossRemoverEnabled;
+        GlossSmoothness = c.glossSmoothness;
+        GlossAffectSticks = c.glossAffectSticks;
+        GlossAffectPlayers = c.glossAffectPlayers;
+        GlossAffectPucks = c.glossAffectPucks;
         DisplaySettingsMigrated = c.displaySettingsMigrated;
     }
 }

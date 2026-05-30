@@ -125,6 +125,13 @@ public class QoLConfig
     public int   shadowCascadeCount = 4;
     public bool  shadowSoftShadows = true;
 
+    // Gloss remover.
+    public bool  glossRemoverEnabled = false;
+    public float glossSmoothness = 0.5f;
+    public bool  glossAffectSticks = true;
+    public bool  glossAffectPlayers = true;
+    public bool  glossAffectPucks = true;
+
     // One-time marker: display settings have been seeded from a pre-existing reskin profile.
     public bool displaySettingsMigrated = false;
 }

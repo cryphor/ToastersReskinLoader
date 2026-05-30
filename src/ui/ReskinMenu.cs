@@ -97,6 +97,7 @@ public static class ReskinMenu
         // If we're in game, show pause menu
         // If we're in main menu, show main menu
         if (rootContainer == null) Create();
+        PuckPreview.Hide();
         mainContainer.visible = false;
         mainContainer.enabledSelf = false;
         mainContainer.style.display = DisplayStyle.None;
@@ -331,6 +332,10 @@ public static class ReskinMenu
 
     public static void CreateContentForSection(int sectionIndex)
     {
+        // Tear down the locker-room puck preview when leaving the Pucks section.
+        // PucksSection re-shows it below when that section is the one being built.
+        PuckPreview.Hide();
+
         contentScrollViewContent.Clear(); // discard existing content
         Label contentSectionTitle = new Label(sections[sectionIndex]);
         contentSectionTitle.style.fontSize = 30;

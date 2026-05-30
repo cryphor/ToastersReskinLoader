@@ -33,7 +33,14 @@ internal static class DisplaySettingsMigration
                 ReadInt(j, "shadowCascadeCount", v => cfg.shadowCascadeCount = v);
                 ReadBool(j, "shadowSoftShadows", v => cfg.shadowSoftShadows = v);
 
-                // (later stages: minimap / chat / gloss / team indicator keys go here)
+                // Gloss
+                ReadBool(j, "glossRemoverEnabled", v => cfg.glossRemoverEnabled = v);
+                ReadFloat(j, "glossSmoothness", v => cfg.glossSmoothness = v);
+                ReadBool(j, "glossAffectSticks", v => cfg.glossAffectSticks = v);
+                ReadBool(j, "glossAffectPlayers", v => cfg.glossAffectPlayers = v);
+                ReadBool(j, "glossAffectPucks", v => cfg.glossAffectPucks = v);
+
+                // (later stages: minimap / chat / team indicator keys go here)
 
                 Plugin.Log("[QoL] Migrated display settings from the reskin profile.");
             }

@@ -581,18 +581,7 @@ public static class ReskinProfileManager
                     : defaultProfile.puckFXSilhouetteColor,
 
                 // QoL lives in side-car files now; nothing to copy here.
-
-                // glossiness
-                glossRemoverEnabled = serializableProfile.GlossRemoverEnabled
-                    ?? defaultProfile.glossRemoverEnabled,
-                glossSmoothness = serializableProfile.GlossSmoothness
-                    ?? defaultProfile.glossSmoothness,
-                glossAffectSticks = serializableProfile.GlossAffectSticks
-                    ?? defaultProfile.glossAffectSticks,
-                glossAffectPlayers = serializableProfile.GlossAffectPlayers
-                    ?? defaultProfile.glossAffectPlayers,
-                glossAffectPucks = serializableProfile.GlossAffectPucks
-                    ?? defaultProfile.glossAffectPucks,
+                // Gloss moved to the QoL profile (personal/perf) — see QoLConfig.
             };
 
             Plugin.Log("Reskin profile loaded successfully.");
@@ -617,6 +606,12 @@ public static class ReskinProfileManager
         {
             foreach (var puckRef in serializableProfile.PuckListRef)
             {
+                if (puckRef?.PackId == DefaultPuckPackId)
+                {
+                    puckList.Add(CreateDefaultPuckEntry());
+                    continue;
+                }
+
                 var entry = FindEntryFromReference(puckRef, "puck");
                 if (entry != null)
                 {
@@ -701,7 +696,7 @@ public static class ReskinProfileManager
 
                 // Puck
                 PuckRef = CreateReferenceFromEntry(currentProfile.puck),
-                PuckListRef = currentProfile.puckList.Select(p => CreateReferenceFromEntry(p)).ToList(),
+                PuckListRef = currentProfile.puckList.Select(p => CreatePuckReference(p)).ToList(),
 
                 // Full arena
                 FullArenaEnabled = currentProfile.fullArenaEnabled,
@@ -811,12 +806,7 @@ public static class ReskinProfileManager
                 // QoL is persisted by QoLStorage; do not re-include it
                 // in the reskin profile so visual profiles stay shareable.
 
-                // Glossiness
-                GlossRemoverEnabled = currentProfile.glossRemoverEnabled,
-                GlossSmoothness = currentProfile.glossSmoothness,
-                GlossAffectSticks = currentProfile.glossAffectSticks,
-                GlossAffectPlayers = currentProfile.glossAffectPlayers,
-                GlossAffectPucks = currentProfile.glossAffectPucks,
+                // Gloss moved to the QoL profile (personal/perf) — see QoLConfig.
             };
 
             string json = JsonConvert.SerializeObject(serializableProfile, Formatting.Indented);
@@ -958,6 +948,30 @@ public static class ReskinProfileManager
         return entry;
     }
     
+    // Sentinel pack id used to persist the "Default" (vanilla) puck in the randomizer list.
+    // The Default entry has no ParentPack, so a normal reference can't be created for it;
+    // this sentinel lets it round-trip through save/load instead of being silently dropped.
+    private const string DefaultPuckPackId = "__trl_default_puck__";
+
+    /// <summary>True if the entry represents the vanilla/default puck (no pack, no texture).</summary>
+    public static bool IsDefaultPuckEntry(ReskinRegistry.ReskinEntry entry) =>
+        entry != null && entry.ParentPack == null && string.IsNullOrEmpty(entry.Path);
+
+    /// <summary>Creates a fresh "Default" puck entry for the randomizer list.</summary>
+    public static ReskinRegistry.ReskinEntry CreateDefaultPuckEntry() =>
+        new ReskinRegistry.ReskinEntry { Name = "Default", Path = null, Type = "puck" };
+
+    /// <summary>
+    /// Serializes a puck-list entry, emitting a sentinel reference for the Default puck
+    /// (which CreateReferenceFromEntry can't represent because it has no parent pack).
+    /// </summary>
+    private static ReskinReference CreatePuckReference(ReskinRegistry.ReskinEntry entry)
+    {
+        if (IsDefaultPuckEntry(entry))
+            return new ReskinReference { PackId = DefaultPuckPackId, EntryName = "Default" };
+        return CreateReferenceFromEntry(entry);
+    }
+
     /// <summary>
     /// Creates a serializable ReskinReference from a live ReskinEntry.
     /// </summary>
@@ -1052,29 +1066,6 @@ public static class ReskinProfileManager
         SaveProfile();
 
         ToasterReskinLoaderAPI.NotifyTeamColorsChanged();
-    }
-
-    /// <summary>
-    /// Resets only the Gloss Remover properties of the current profile
-    /// to their default values and saves the profile.
-    /// </summary>
-    public static void ResetGlossRemoverToDefault()
-    {
-        Plugin.Log("Resetting Gloss Remover settings to their default values.");
-
-        var defaultValues = new Profile();
-
-        currentProfile.glossRemoverEnabled = defaultValues.glossRemoverEnabled;
-        currentProfile.glossSmoothness = defaultValues.glossSmoothness;
-        currentProfile.glossAffectSticks = defaultValues.glossAffectSticks;
-        currentProfile.glossAffectPlayers = defaultValues.glossAffectPlayers;
-        currentProfile.glossAffectPucks = defaultValues.glossAffectPucks;
-
-        SaveProfile();
-
-        swappers.GlossSwapper.RestoreAll();
-        if (currentProfile.glossRemoverEnabled)
-            swappers.GlossSwapper.Scan();
     }
 
     /// <summary>
@@ -1416,17 +1407,7 @@ public static class ReskinProfileManager
         // QoL.json + ServerPrefs.json) so visual profiles stay shareable
         // without leaking toggles or per-server credentials. See QoLStorage.
 
-        // Gloss Remover section
-        [PresetField("Gloss", "Enabled")]
-        public bool glossRemoverEnabled = false;
-        [PresetField("Gloss", "Smoothness")]
-        public float glossSmoothness = 0.5f;
-        [PresetField("Gloss", "Affect sticks")]
-        public bool glossAffectSticks = true;
-        [PresetField("Gloss", "Affect players")]
-        public bool glossAffectPlayers = true;
-        [PresetField("Gloss", "Affect pucks")]
-        public bool glossAffectPucks = true;
+        // Gloss moved to the QoL profile (personal/perf) — see QoLConfig.
     }
     
     /// <summary>
@@ -1762,17 +1743,7 @@ public static class ReskinProfileManager
         // profile to QoL state and re-introduce the share-leak risk the
         // split was meant to avoid.
       
-        // Glossiness
-        [JsonProperty("glossRemoverEnabled")]
-        public bool? GlossRemoverEnabled { get; set; }
-        [JsonProperty("glossSmoothness")]
-        public float? GlossSmoothness { get; set; }
-        [JsonProperty("glossAffectSticks")]
-        public bool? GlossAffectSticks { get; set; }
-        [JsonProperty("glossAffectPlayers")]
-        public bool? GlossAffectPlayers { get; set; }
-        [JsonProperty("glossAffectPucks")]
-        public bool? GlossAffectPucks { get; set; }
+        // Gloss moved to the QoL profile (personal/perf) — see QoLConfig.
     }
 }
 
