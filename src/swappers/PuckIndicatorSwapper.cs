@@ -221,8 +221,8 @@ public static class PuckIndicatorSwapper
         float heightDeadzone = 0.4f;
         float effectiveHeight = Mathf.Max(0f, Mathf.Abs(heightDelta) - heightDeadzone)
                                 * Mathf.Sign(heightDelta);
-        // Invert: puck above camera (positive delta) → ny negative → arrow at top
-        float nyRaw = effectiveHeight * 6f / (vfov * 0.55f);
+        // Negate: puck above camera (positive delta) → ny negative → arrow at top
+        float nyRaw = -effectiveHeight * 6f / (vfov * 0.55f);
         float ny = Mathf.Clamp(nyRaw, -1f, 1f);
 
         // Map normalised coords to a point on the screen rectangle.
@@ -238,10 +238,12 @@ public static class PuckIndicatorSwapper
 
         if (Mathf.Abs(dir.x) < 0.001f && Mathf.Abs(dir.y) < 0.001f)
         {
-            // Degenerate: puck is exactly ahead in z but off in y.
-            // Place arrow at top-centre, pointing up.
-            targetPos = new Vector2(centre.x, Screen.height - margin);
-            targetRot = -90f;
+            // Degenerate: puck is nearly dead-center horizontally.
+            // Place arrow on the correct vertical edge based on ny.
+            // ny < 0 → puck above → top edge; ny > 0 → puck below → bottom edge.
+            bool puckAbove = ny < 0f;
+            targetPos = new Vector2(centre.x, puckAbove ? margin : Screen.height - margin);
+            targetRot = puckAbove ? -90f : 90f;
         }
         else
         {
@@ -274,6 +276,8 @@ public static class PuckIndicatorSwapper
             // But we want the arrow on the edge with its tip pointing
             // *inward* toward the puck, so the arrow should point from
             // the edge toward the puck = opposite of ndir.
+            // Point from the edge snappoint toward the puck's actual
+            // direction (same as centre→edge direction, extended outward).
             targetRot = Mathf.Atan2(-ndir.y, -ndir.x) * Mathf.Rad2Deg;
         }
 
