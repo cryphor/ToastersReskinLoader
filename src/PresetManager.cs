@@ -65,7 +65,7 @@ public static class PresetManager
                 if (data != null)
                 {
                     data.Name = data.Name ?? Path.GetFileNameWithoutExtension(file);
-                    data.FilePath = file;
+                    data.file = file;
                     presets.Add(new PresetInfo(data.Name, file, data.SavedAt));
                 }
             }
