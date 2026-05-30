@@ -793,8 +793,11 @@ public static class PresetsSection
             dash.style.position = Position.Absolute;
             dash.style.left = 4;
             dash.style.right = 4;
-            dash.style.top = 7;
-            dash.style.height = 2;
+            dash.style.height = 3;
+            // Center vertically regardless of the checkbox box height: anchor the top edge at
+            // 50% and pull back up by half the dash height.
+            dash.style.top = new Length(50, LengthUnit.Percent);
+            dash.style.marginTop = -1.5f;
             dash.style.backgroundColor = Color.white;
             dash.pickingMode = PickingMode.Ignore;
             input.Add(dash);

@@ -72,7 +72,7 @@ public static class PresetStore
     {
         return ReskinRegistry.reskinPacks
             .Where(p => p.WorkshopId == 0 && !string.IsNullOrEmpty(p.FolderPath))
-            .Select(p => ($"Pack: {p.Name}", Path.Combine(p.FolderPath, "presets")))
+            .Select(p => ($"Local pack: {p.Name}", Path.Combine(p.FolderPath, "presets")))
             .ToList();
     }
 
