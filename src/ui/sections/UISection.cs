@@ -382,21 +382,21 @@ public static class UISection
         contentScrollViewContent.Add(chatHeader);
 
         CreateSliderRow(contentScrollViewContent, "Chat Height", 200f, 1300f,
-            () => ReskinProfileManager.currentProfile.chatHeight,
+            () => Cfg.chatHeight,
             val =>
             {
-                ReskinProfileManager.currentProfile.chatHeight = val;
-                ReskinProfileManager.SaveProfile();
+                Cfg.chatHeight = val;
+                SaveQoL();
                 ApplyChatHeight(val);
             });
 
         VisualElement chatBgRow = UITools.CreateConfigurationRow();
         chatBgRow.Add(UITools.CreateConfigurationLabel("Chat Background"));
-        Toggle chatBgToggle = UITools.CreateConfigurationCheckbox(ReskinProfileManager.currentProfile.chatBackground);
+        Toggle chatBgToggle = UITools.CreateConfigurationCheckbox(Cfg.chatBackground);
         chatBgToggle.RegisterCallback<ChangeEvent<bool>>(evt =>
         {
-            ReskinProfileManager.currentProfile.chatBackground = evt.newValue;
-            ReskinProfileManager.SaveProfile();
+            Cfg.chatBackground = evt.newValue;
+            SaveQoL();
             ApplyChatBackground(evt.newValue);
         });
         chatBgRow.Add(chatBgToggle);
@@ -404,30 +404,30 @@ public static class UISection
 
         VisualElement emojiRow = UITools.CreateConfigurationRow();
         emojiRow.Add(UITools.CreateConfigurationLabel("Render All Emojis in Chat"));
-        Toggle emojiToggle = UITools.CreateConfigurationCheckbox(ReskinProfileManager.currentProfile.chatRenderAllEmojis);
+        Toggle emojiToggle = UITools.CreateConfigurationCheckbox(Cfg.chatRenderAllEmojis);
         emojiToggle.RegisterCallback<ChangeEvent<bool>>(evt =>
         {
-            ReskinProfileManager.currentProfile.chatRenderAllEmojis = evt.newValue;
-            ReskinProfileManager.SaveProfile();
+            Cfg.chatRenderAllEmojis = evt.newValue;
+            SaveQoL();
         });
         emojiRow.Add(emojiToggle);
         contentScrollViewContent.Add(emojiRow);
 
         CreateSliderRow(contentScrollViewContent, "Quick Chat Menu X Position", 0f, 100f,
-            () => ReskinProfileManager.currentProfile.quickChatX,
+            () => Cfg.quickChatX,
             val =>
             {
-                ReskinProfileManager.currentProfile.quickChatX = val;
-                ReskinProfileManager.SaveProfile();
+                Cfg.quickChatX = val;
+                SaveQoL();
                 ApplyQuickChatPosition();
             });
 
         CreateSliderRow(contentScrollViewContent, "Quick Chat Menu Y Position", 0f, 100f,
-            () => ReskinProfileManager.currentProfile.quickChatY,
+            () => Cfg.quickChatY,
             val =>
             {
-                ReskinProfileManager.currentProfile.quickChatY = val;
-                ReskinProfileManager.SaveProfile();
+                Cfg.quickChatY = val;
+                SaveQoL();
                 ApplyQuickChatPosition();
             });
 
@@ -505,8 +505,8 @@ public static class UISection
         var quickChat = _quickChatField?.GetValue(uiChat) as VisualElement;
         if (quickChat == null) return;
 
-        quickChat.style.left = new StyleLength(new Length(ReskinProfileManager.currentProfile.quickChatX, LengthUnit.Percent));
-        quickChat.style.top = new StyleLength(new Length(ReskinProfileManager.currentProfile.quickChatY, LengthUnit.Percent));
+        quickChat.style.left = new StyleLength(new Length(Cfg?.quickChatX ?? 0f, LengthUnit.Percent));
+        quickChat.style.top = new StyleLength(new Length(Cfg?.quickChatY ?? 50f, LengthUnit.Percent));
     }
 
     private static TextField CreateTextInput(string value, string placeholder, System.Action<string> onChanged)

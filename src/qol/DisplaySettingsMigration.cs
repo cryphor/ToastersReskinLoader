@@ -52,7 +52,14 @@ internal static class DisplaySettingsMigration
                 ReadColor(j, "blueLocalPlayerMinimapIconColor", v => cfg.blueLocalPlayerMinimapIconColor = v);
                 ReadColor(j, "redLocalPlayerMinimapIconColor", v => cfg.redLocalPlayerMinimapIconColor = v);
 
-                // (later stages: chat / team indicator keys go here)
+                // Chat
+                ReadFloat(j, "chatHeight", v => cfg.chatHeight = v);
+                ReadBool(j, "chatBackground", v => cfg.chatBackground = v);
+                ReadFloat(j, "quickChatX", v => cfg.quickChatX = v);
+                ReadFloat(j, "quickChatY", v => cfg.quickChatY = v);
+                ReadBool(j, "chatRenderAllEmojis", v => cfg.chatRenderAllEmojis = v);
+
+                // (later stages: team indicator keys go here)
 
                 Plugin.Log("[QoL] Migrated display settings from the reskin profile.");
             }

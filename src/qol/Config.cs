@@ -144,6 +144,13 @@ public class QoLConfig
     public Color blueLocalPlayerMinimapIconColor = new Color(0f, 1f, 0f, 1f);
     public Color redLocalPlayerMinimapIconColor = new Color(0f, 1f, 0f, 1f);
 
+    // Chat (HUD).
+    public float chatHeight = 300f;
+    public bool  chatBackground = false;
+    public float quickChatX = 0f;
+    public float quickChatY = 50f;
+    public bool  chatRenderAllEmojis = true;
+
     // One-time marker: display settings have been seeded from a pre-existing reskin profile.
     public bool displaySettingsMigrated = false;
 }

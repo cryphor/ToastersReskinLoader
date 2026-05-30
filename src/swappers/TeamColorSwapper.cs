@@ -502,7 +502,7 @@ public static class TeamColorSwapper
         [HarmonyPrefix]
         public static bool Prefix(ref string __result, string content, bool isSystem, Units units, bool filterProfanity)
         {
-            if (!ReskinProfileManager.currentProfile.chatRenderAllEmojis) return true;
+            if (!(qol.QoLRunner.Instance?.Config?.chatRenderAllEmojis ?? true)) return true;
             if (isSystem) return true;
 
             // Non-system: filter rich text and profanity, but skip

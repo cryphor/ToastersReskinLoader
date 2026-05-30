@@ -475,17 +475,7 @@ public static class ReskinProfileManager
 
                 // Minimap moved to the QoL profile (HUD) — see QoLConfig.
 
-                // Chat
-                chatHeight = serializableProfile.ChatHeight
-                    ?? defaultProfile.chatHeight,
-                chatBackground = serializableProfile.ChatBackground
-                    ?? defaultProfile.chatBackground,
-                quickChatX = serializableProfile.QuickChatX
-                    ?? defaultProfile.quickChatX,
-                quickChatY = serializableProfile.QuickChatY
-                    ?? defaultProfile.quickChatY,
-                chatRenderAllEmojis = serializableProfile.ChatRenderAllEmojis
-                    ?? defaultProfile.chatRenderAllEmojis,
+                // Chat moved to the QoL profile (HUD) — see QoLConfig.
 
                 // Skybox
                 skyboxAtmosphereThickness =
@@ -739,12 +729,7 @@ public static class ReskinProfileManager
 
                 // Minimap moved to the QoL profile (HUD) — see QoLConfig.
 
-                // Chat
-                ChatHeight = currentProfile.chatHeight,
-                ChatBackground = currentProfile.chatBackground,
-                QuickChatX = currentProfile.quickChatX,
-                QuickChatY = currentProfile.quickChatY,
-                ChatRenderAllEmojis = currentProfile.chatRenderAllEmojis,
+                // Chat moved to the QoL profile (HUD) — see QoLConfig.
 
                 // Skybox
                 SkyboxAtmosphereThickness = currentProfile.skyboxAtmosphereThickness,
@@ -1276,17 +1261,7 @@ public static class ReskinProfileManager
 
         // Minimap moved to the QoL profile (HUD) — see QoLConfig.
 
-        // Chat section
-        [PresetField("Chat", "Height")]
-        public float chatHeight = 300f; // game default
-        [PresetField("Chat", "Background")]
-        public bool chatBackground = false;
-        [PresetField("Chat", "Quick chat X")]
-        public float quickChatX = 0f;
-        [PresetField("Chat", "Quick chat Y")]
-        public float quickChatY = 50f;
-        [PresetField("Chat", "Render all emojis")]
-        public bool chatRenderAllEmojis = true;
+        // Chat moved to the QoL profile (HUD) — see QoLConfig.
 
         // Shadows moved to the QoL profile (personal/perf) — see QoLConfig.
 
@@ -1594,17 +1569,7 @@ public static class ReskinProfileManager
 
         // Minimap moved to the QoL profile (HUD) — see QoLConfig.
 
-        // CHAT
-        [JsonProperty("chatHeight")]
-        public float? ChatHeight { get; set; }
-        [JsonProperty("chatBackground")]
-        public bool? ChatBackground { get; set; }
-        [JsonProperty("quickChatX")]
-        public float? QuickChatX { get; set; }
-        [JsonProperty("quickChatY")]
-        public float? QuickChatY { get; set; }
-        [JsonProperty("chatRenderAllEmojis")]
-        public bool? ChatRenderAllEmojis { get; set; }
+        // Chat moved to the QoL profile (HUD) — see QoLConfig.
 
         // SKYBOX
         [JsonProperty("skyboxAtmosphereThickness")]

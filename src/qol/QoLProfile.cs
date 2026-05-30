@@ -156,6 +156,17 @@ public class QoLProfile
     public SerializableColor BlueLocalPlayerMinimapIconColor { get; set; } = new SerializableColor(new Color(0f, 1f, 0f, 1f));
     [JsonProperty("redLocalPlayerMinimapIconColor")]
     public SerializableColor RedLocalPlayerMinimapIconColor { get; set; } = new SerializableColor(new Color(0f, 1f, 0f, 1f));
+    // Chat
+    [JsonProperty("chatHeight")]
+    public float ChatHeight { get; set; } = 300f;
+    [JsonProperty("chatBackground")]
+    public bool ChatBackground { get; set; } = false;
+    [JsonProperty("quickChatX")]
+    public float QuickChatX { get; set; } = 0f;
+    [JsonProperty("quickChatY")]
+    public float QuickChatY { get; set; } = 50f;
+    [JsonProperty("chatRenderAllEmojis")]
+    public bool ChatRenderAllEmojis { get; set; } = true;
     [JsonProperty("displaySettingsMigrated")]
     public bool DisplaySettingsMigrated { get; set; } = false;
 
@@ -227,6 +238,11 @@ public class QoLProfile
             localPlayerMinimapIconEnabled = LocalPlayerMinimapIconEnabled,
             blueLocalPlayerMinimapIconColor = BlueLocalPlayerMinimapIconColor != null ? (Color)BlueLocalPlayerMinimapIconColor : new Color(0f, 1f, 0f, 1f),
             redLocalPlayerMinimapIconColor = RedLocalPlayerMinimapIconColor != null ? (Color)RedLocalPlayerMinimapIconColor : new Color(0f, 1f, 0f, 1f),
+            chatHeight = ChatHeight,
+            chatBackground = ChatBackground,
+            quickChatX = QuickChatX,
+            quickChatY = QuickChatY,
+            chatRenderAllEmojis = ChatRenderAllEmojis,
             displaySettingsMigrated = DisplaySettingsMigrated,
         };
     }
@@ -298,6 +314,11 @@ public class QoLProfile
         LocalPlayerMinimapIconEnabled = c.localPlayerMinimapIconEnabled;
         BlueLocalPlayerMinimapIconColor = new SerializableColor(c.blueLocalPlayerMinimapIconColor);
         RedLocalPlayerMinimapIconColor = new SerializableColor(c.redLocalPlayerMinimapIconColor);
+        ChatHeight = c.chatHeight;
+        ChatBackground = c.chatBackground;
+        QuickChatX = c.quickChatX;
+        QuickChatY = c.quickChatY;
+        ChatRenderAllEmojis = c.chatRenderAllEmojis;
         DisplaySettingsMigrated = c.displaySettingsMigrated;
     }
 }
