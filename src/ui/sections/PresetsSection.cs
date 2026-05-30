@@ -143,24 +143,45 @@ public static class PresetsSection
 
         if (userPresets.Count > 0)
         {
-            if (showHeadings) _root.Add(GroupHeading("My Presets"));
-            foreach (var preset in userPresets) _root.Add(BuildPresetRow(preset));
+            if (showHeadings) _root.Add(GroupHeading("My Presets", 18));
+            RenderPresetGroup(userPresets);
         }
 
         if (packPresets.Count > 0)
         {
-            if (showHeadings) _root.Add(GroupHeading("From Packs"));
-            foreach (var preset in packPresets) _root.Add(BuildPresetRow(preset));
+            if (showHeadings) _root.Add(GroupHeading("From Packs", 18));
+            RenderPresetGroup(packPresets);
         }
     }
 
-    private static Label GroupHeading(string text)
+    // Within a source, split team presets from full presets and render each alphabetically.
+    // (LoadUserPresets/LoadPackPresets already return names in alpha order.)
+    private static void RenderPresetGroup(List<Preset> presets)
+    {
+        var team = presets.Where(p => p.IsTeamScoped).ToList();
+        var full = presets.Where(p => !p.IsTeamScoped).ToList();
+        bool both = team.Count > 0 && full.Count > 0;
+
+        if (team.Count > 0)
+        {
+            if (both) _root.Add(GroupHeading("Team presets", 14));
+            foreach (var preset in team) _root.Add(BuildPresetRow(preset));
+        }
+        if (full.Count > 0)
+        {
+            if (both) _root.Add(GroupHeading("Full presets", 14));
+            foreach (var preset in full) _root.Add(BuildPresetRow(preset));
+        }
+    }
+
+    private static Label GroupHeading(string text, int fontSize)
     {
         var label = UITools.CreateConfigurationLabel(text);
-        label.style.fontSize = 18;
+        label.style.fontSize = fontSize;
         label.style.unityFontStyleAndWeight = FontStyle.Bold;
         label.style.marginTop = 10;
         label.style.marginBottom = 4;
+        if (fontSize <= 14) label.style.color = new Color(0.7f, 0.85f, 1f);
         return label;
     }
 
