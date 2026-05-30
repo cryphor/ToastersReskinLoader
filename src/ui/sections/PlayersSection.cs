@@ -40,18 +40,28 @@ public static class PlayersSection
         title.style.marginBottom = 8;
         _root.Add(title);
 
-        // Team + role toggles
-        _root.Add(ToggleRow("Team", new[]
-        {
-            (TeamName(PresetTeam.Blue), (object)PresetTeam.Blue, _team == PresetTeam.Blue),
-            (TeamName(PresetTeam.Red), (object)PresetTeam.Red, _team == PresetTeam.Red),
-        }, sel => { _team = (PresetTeam)sel; Render(); }));
+        // Team + role toggles in one row
+        var profile = ReskinProfileManager.currentProfile;
+        var toggles = UITools.CreateRow();
+        toggles.style.flexWrap = Wrap.Wrap;
 
-        _root.Add(ToggleRow("Role", new[]
-        {
-            ("Skater", (object)PresetRole.Skater, _role == PresetRole.Skater),
-            ("Goalie", (object)PresetRole.Goalie, _role == PresetRole.Goalie),
-        }, sel => { _role = (PresetRole)sel; Render(); }));
+        var teamLabel = UITools.CreateConfigurationLabel("Team:");
+        teamLabel.style.width = 55;
+        toggles.Add(teamLabel);
+        toggles.Add(MakeToggleButton(TeamName(PresetTeam.Blue), _team == PresetTeam.Blue,
+            profile.blueTeamColor, () => { _team = PresetTeam.Blue; Render(); }));
+        toggles.Add(MakeToggleButton(TeamName(PresetTeam.Red), _team == PresetTeam.Red,
+            profile.redTeamColor, () => { _team = PresetTeam.Red; Render(); }));
+
+        var roleLabel = UITools.CreateConfigurationLabel("Role:");
+        roleLabel.style.width = 55;
+        roleLabel.style.marginLeft = 20;
+        toggles.Add(roleLabel);
+        toggles.Add(MakeToggleButton("Skater", _role == PresetRole.Skater,
+            null, () => { _role = PresetRole.Skater; Render(); }));
+        toggles.Add(MakeToggleButton("Goalie", _role == PresetRole.Goalie,
+            null, () => { _role = PresetRole.Goalie; Render(); }));
+        _root.Add(toggles);
 
         _root.Add(BuildCopyRow());
 
@@ -63,7 +73,7 @@ public static class PlayersSection
         _root.Add(divider);
 
         var heading = new Label($"Editing: {TeamName(_team)} {(_role == PresetRole.Goalie ? "Goalie" : "Skater")}");
-        heading.style.fontSize = 18;
+        heading.style.fontSize = 24;
         heading.style.unityFontStyleAndWeight = FontStyle.Bold;
         heading.style.color = Color.white;
         heading.style.marginBottom = 8;
@@ -164,7 +174,12 @@ public static class PlayersSection
             .ToList();
         var labels = others.Select(CellLabel).ToList();
 
-        var dropdown = UITools.CreateStringDropdownField(labels, labels[0]);
+        // Default to the same team's other role (the most common copy, e.g. Skater <-> Goalie).
+        var otherRole = _role == PresetRole.Goalie ? PresetRole.Skater : PresetRole.Goalie;
+        string defaultLabel = CellLabel((_team, otherRole));
+        if (!labels.Contains(defaultLabel)) defaultLabel = labels[0];
+
+        var dropdown = UITools.CreateStringDropdownField(labels, defaultLabel);
         dropdown.style.marginLeft = 8;
         dropdown.style.marginRight = 8;
         row.Add(dropdown);
@@ -191,31 +206,47 @@ public static class PlayersSection
 
     // ───────────────────────── helpers ─────────────────────────
 
-    private static VisualElement ToggleRow(string label, (string Text, object Value, bool Active)[] options,
-        System.Action<object> onSelect)
+    // A toggle button that keeps its active styling when the mouse leaves. For team buttons,
+    // pass the team color (shown full when active, dimmed when not); role buttons pass null
+    // and use the neutral light/dark active scheme.
+    private static Button MakeToggleButton(string text, bool active, Color? teamColor, System.Action onClick)
     {
-        var row = UITools.CreateRow();
-        row.style.marginTop = 4;
-        var lbl = UITools.CreateConfigurationLabel(label + ":");
-        lbl.style.width = 60;
-        row.Add(lbl);
+        var btn = new Button { text = text };
+        btn.style.unityTextAlign = TextAnchor.MiddleCenter;
+        btn.style.fontSize = 16;
+        btn.style.paddingTop = 6;
+        btn.style.paddingBottom = 6;
+        btn.style.paddingLeft = 16;
+        btn.style.paddingRight = 16;
+        btn.style.marginRight = 6;
+        btn.style.borderTopWidth = 0;
+        btn.style.borderBottomWidth = 0;
+        btn.style.borderLeftWidth = 0;
+        btn.style.borderRightWidth = 0;
 
-        foreach (var opt in options)
+        Color resting, textColor;
+        if (teamColor.HasValue)
         {
-            var btn = new Button { text = opt.Text };
-            UITools.StyleConfigButton(btn);
-            btn.style.marginRight = 6;
-            if (opt.Active)
-            {
-                btn.style.backgroundColor = new StyleColor(new Color(0.7f, 0.7f, 0.7f));
-                btn.style.color = Color.black;
-            }
-            var value = opt.Value;
-            btn.RegisterCallback<ClickEvent>(_ => onSelect(value));
-            row.Add(btn);
+            var c = teamColor.Value;
+            resting = active ? c : new Color(c.r * 0.3f, c.g * 0.3f, c.b * 0.3f, 1f);
+            textColor = Color.white;
+        }
+        else
+        {
+            resting = active ? new Color(0.7f, 0.7f, 0.7f) : new Color(0.25f, 0.25f, 0.25f);
+            textColor = active ? Color.black : Color.white;
         }
 
-        return row;
+        btn.style.backgroundColor = resting;
+        btn.style.color = textColor;
+        btn.RegisterCallback<MouseEnterEvent>(_ => btn.style.backgroundColor = Color.Lerp(resting, Color.white, 0.3f));
+        btn.RegisterCallback<MouseLeaveEvent>(_ =>
+        {
+            btn.style.backgroundColor = resting;
+            btn.style.color = textColor;
+        });
+        btn.RegisterCallback<ClickEvent>(_ => onClick());
+        return btn;
     }
 
     private static string TeamName(PresetTeam team)
