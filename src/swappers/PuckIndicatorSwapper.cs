@@ -6,30 +6,25 @@ using UnityEngine.UIElements;
 namespace ToasterReskinLoader.swappers;
 
 /// <summary>
-/// Screen-space puck direction indicator.
-/// When the puck is off-screen, a diamond arrow appears on the nearest screen edge
-/// pointing toward the puck's world position — just like the side-of-screen indicators in NHL EA.
-///
-/// Creates a VisualElement overlay parented under the UIManager root panel
-/// so the arrow renders on top of the normal game HUD. A tiny helper
-/// MonoBehaviour on the UIManager GameObject drives the per-frame update.
+/// Puck indicator
 /// </summary>
 public static class PuckIndicatorSwapper
 {
-    private static bool _isApplied;
-    private static VisualElement _overlayRoot;
-    private static VisualElement _leftArrow;
-    private static VisualElement _rightArrow;
-    private static VisualElement _topArrow;
-    private static VisualElement _bottomArrow;
-
-    // Helper MonoBehaviour that drives Tick() each LateUpdate
+    // ── State ──────────────────────────────────────────────────────────
+    private static bool               _applied;
+    private static VisualElement      _overlay;
+    private static VisualElement      _arrow;       // the little triangle
     private static PuckIndicatorTicker _ticker;
-    private static Camera _camera;
+    private static Camera              _cam;
 
-    // ---------------------------------------------------------------
-    //  Public API
-    // ---------------------------------------------------------------
+    // Smoothing history (previous-frame values for lerp)
+    private static Vector2  _smoothPos;
+    private static float    _smoothRot;
+    private static float    // current displayed opacity (lerps toward target)
+                            _smoothAlpha;
+    private static float    _targetAlpha;
+
+    // ── Public API ─────────────────────────────────────────────────────
 
     public static void ApplyAll()
     {
@@ -41,39 +36,36 @@ public static class PuckIndicatorSwapper
 
     public static void Apply()
     {
-        if (_isApplied) return;
-
-        Plugin.Log("Apply() - PuckIndicatorSwapper");
+        if (_applied) return;
+        Plugin.Log("PuckIndicatorSwapper.Apply()");
 
         try
         {
-            _camera = Camera.main;
-
-            CreateOverlay();
+            BuildOverlay();
             EnsureTicker();
-            _isApplied = true;
+            _smoothAlpha   = 0f;
+            _targetAlpha   = 0f;
+            _smoothPos     = new Vector2(Screen.width * 0.5f, 0f);
+            _smoothRot     = 0f;
+            _applied = true;
         }
         catch (Exception ex)
         {
-            Plugin.LogError($"PuckIndicatorSwapper.Apply(): {ex}");
+            Plugin.LogError($"PuckIndicatorSwapper.Apply: {ex}");
         }
     }
 
     public static void Remove()
     {
-        if (!_isApplied) return;
-
-        Plugin.Log("Remove() - PuckIndicatorSwapper");
+        if (!_applied) return;
+        Plugin.Log("PuckIndicatorSwapper.Remove()");
 
         try
         {
-            if (_overlayRoot != null)
-            {
-                _overlayRoot.RemoveFromHierarchy();
-                _overlayRoot = null;
-            }
-
-            _leftArrow = _rightArrow = _topArrow = _bottomArrow = null;
+            _arrow?.RemoveFromHierarchy();
+            _overlay?.RemoveFromHierarchy();
+            _arrow = null;
+            _overlay = null;
 
             if (_ticker != null)
             {
@@ -81,383 +73,315 @@ public static class PuckIndicatorSwapper
                 _ticker = null;
             }
 
-            _isApplied = false;
-            _camera = null;
+            _applied = false;
+            _cam     = null;
         }
         catch (Exception ex)
         {
-            Plugin.LogError($"PuckIndicatorSwapper.Remove(): {ex}");
+            Plugin.LogError($"PuckIndicatorSwapper.Remove: {ex}");
         }
     }
 
-    // ---------------------------------------------------------------
-    //  Overlay creation
-    // ---------------------------------------------------------------
+    // ── Overlay build ──────────────────────────────────────────────────
 
-    private static void CreateOverlay()
+    private static void BuildOverlay()
     {
-        var uiManager = UIManager.Instance;
-        if (uiManager == null)
-        {
-            Plugin.LogWarning("PuckIndicatorSwapper: UIManager not available.");
-            return;
-        }
+        var ui = UIManager.Instance;
+        if (ui == null || ui.RootVisualElement == null) return;
 
-        var root = uiManager.RootVisualElement;
-        if (root == null)
-        {
-            Plugin.LogWarning("PuckIndicatorSwapper: RootVisualElement is null.");
-            return;
-        }
+        _overlay = new VisualElement { name = "PuckIndicatorOverlay" };
+        _overlay.style.position  = Position.Absolute;
+        _overlay.style.left      = 0;
+        _overlay.style.top       = 0;
+        _overlay.style.right     = 0;
+        _overlay.style.bottom    = 0;
+        _overlay.style.overflow  = Overflow.Visible;
+        _overlay.pickingMode    = PickingMode.Ignore;
 
-        _overlayRoot = new VisualElement { name = "PuckIndicatorOverlay" };
-        _overlayRoot.style.position = Position.Absolute;
-        _overlayRoot.style.left = Length.Percent(0);
-        _overlayRoot.style.top = Length.Percent(0);
-        _overlayRoot.style.width = Length.Percent(100);
-        _overlayRoot.style.height = Length.Percent(100);
-        _overlayRoot.style.overflow = Overflow.Visible;
-        _overlayRoot.pickingMode = PickingMode.Ignore;
+        // ── Arrow ──────────────────────────────────────────────────────
+        // We build a proper right-pointing triangle using the
+        // transparent-border trick, then rotate the whole element.
+        //
+        //      ▲
+        //     ◀▶   ← the "point" of the arrow faces right by default
+        //      ▼
+        //
+        // A tall thin rectangle with only the right border coloured
+        // produces a clean CSS triangle suitable for rotation.
+        _arrow = new VisualElement { name = "PuckArrow" };
+        _arrow.style.position       = Position.Absolute;
+        _arrow.pickingMode         = PickingMode.Ignore;
+        _arrow.style.overflow      = Overflow.Hidden;
+        _arrow.style.width          = 20;      // overridden each frame
+        _arrow.style.height         = 20;      // overridden each frame
+        // Transparent on three sides → coloured triangle on the 4th
+        _arrow.style.borderTopColor     = new StyleColor(new Color(0, 0, 0, 0));
+        _arrow.style.borderBottomColor  = new StyleColor(new Color(0, 0, 0, 0));
+        _arrow.style.borderLeftColor    = new StyleColor(new Color(0, 0, 0, 0));
+        _arrow.style.borderRightColor   = new StyleColor(Color.white); // overridden
+        _arrow.style.borderTopWidth     = 10;
+        _arrow.style.borderBottomWidth  = 10;
+        _arrow.style.borderLeftWidth    = 0;
+        _arrow.style.borderRightWidth   = 14;
 
-        _leftArrow = BuildArrow("Left");
-        _rightArrow = BuildArrow("Right");
-        _topArrow = BuildArrow("Top");
-        _bottomArrow = BuildArrow("Bottom");
-
-        _overlayRoot.Add(_leftArrow);
-        _overlayRoot.Add(_rightArrow);
-        _overlayRoot.Add(_topArrow);
-        _overlayRoot.Add(_bottomArrow);
-
-        root.Add(_overlayRoot);
-
-        HideAllArrows();
+        _overlay.Add(_arrow);
+        ui.RootVisualElement.Add(_overlay);
     }
-
-    private static VisualElement BuildArrow(string name)
-    {
-        var arrow = new VisualElement { name = $"PuckArrow_{name}" };
-        arrow.style.position = Position.Absolute;
-        arrow.style.display = DisplayStyle.None;
-        arrow.pickingMode = PickingMode.Ignore;
-        return arrow;
-    }
-
-    // ---------------------------------------------------------------
-    //  Helper MonoBehaviour (per-frame tick)
-    // ---------------------------------------------------------------
 
     private static void EnsureTicker()
     {
         if (_ticker != null) return;
+        var go = UIManager.Instance?.gameObject;
+        if (go == null) return;
 
-        var uiManagerGO = UIManager.Instance?.gameObject;
-        if (uiManagerGO == null) return;
-
-        _ticker = uiManagerGO.GetComponent<PuckIndicatorTicker>();
+        _ticker = go.GetComponent<PuckIndicatorTicker>();
         if (_ticker == null)
-            _ticker = uiManagerGO.AddComponent<PuckIndicatorTicker>();
+            _ticker = go.AddComponent<PuckIndicatorTicker>();
     }
 
-    // ---------------------------------------------------------------
-    //  Per-frame update (called from the ticker's LateUpdate)
-    // ---------------------------------------------------------------
+    // ── Per-frame tick ─────────────────────────────────────────────────
 
-    private static void LateTick()
+    internal static void Tick()
     {
-        if (_overlayRoot == null || !_isApplied) return;
+        if (!_applied || _overlay == null || _arrow == null) return;
 
         var profile = ReskinProfileManager.currentProfile;
         if (profile == null || !profile.puckIndicatorEnabled)
         {
-            _overlayRoot.style.display = DisplayStyle.None;
+            _overlay.style.display = DisplayStyle.None;
             return;
         }
+        _overlay.style.display = DisplayStyle.Flex;
 
-        _overlayRoot.style.display = DisplayStyle.Flex;
+        // ── Camera ─────────────────────────────────────────────────────
+        Camera cam = FindCamera();
+        if (cam == null) { FadeOut(); return; }
 
-        // We need a camera for the viewport check. Try the local player's camera first,
-        // then fall back to Camera.main. In Puck the "main camera" can be a spectator
-        // cam that follows the puck, so we specifically want the player's own camera.
-        Camera cam = GetLocalPlayerCamera();
-        if (cam == null)
-        {
-            HideAllArrows();
-            return;
-        }
-
-        // Find puck
+        // ── Puck ───────────────────────────────────────────────────────
         Puck puck = FindActivePuck();
-        if (puck == null || puck.gameObject == null)
-        {
-            HideAllArrows();
-            return;
-        }
-
+        if (puck == null || puck.gameObject == null) { FadeOut(); return; }
         Vector3 puckPos = puck.transform.position;
-        Vector3 screenPoint = cam.WorldToScreenPoint(puckPos);
 
-        // Check if puck is in front of camera and within screen bounds —
-        // if so, the player can see it and we don't need an indicator.
-        bool inFront = screenPoint.z > 0f;
-        bool withinX = screenPoint.x >= 0f && screenPoint.x <= Screen.width;
-        bool withinY = screenPoint.y >= 0f && screenPoint.y <= Screen.height;
-        bool onScreen = inFront && withinX && withinY;
+        // ── Is puck on-screen? ─────────────────────────────────────────
+        // WorldToViewportPoint returns 0..1 range for points in front
+        // of and within the frustum.  z < 0 means behind the camera.
+        Vector3 vp = cam.WorldToViewportPoint(puckPos);
+        bool inFront = vp.z > 0f;
+        bool onFront = inFront && vp.x > 0f && vp.x < 1f && vp.y > 0f && vp.y < 1f;
 
-        if (onScreen)
+        if (onFront)
         {
-            HideAllArrows();
+            // Puck is within the camera frustum — no indicator needed.
+            FadeOut();
             return;
         }
 
-        // --- Compute the angle from camera center toward the puck ---
-        // This is the NHL EA approach: project the puck direction onto the
-        // camera's local space, get the yaw angle, and map it to a screen edge.
-        Vector3 camPos = cam.transform.position;
-        Vector3 camFwd = cam.transform.forward;
-        Vector3 camRight = cam.transform.right;
-        Vector3 camUp = cam.transform.up;
+        // ── Compute angle from camera to puck ──────────────────────────
+        Vector3 toPuck   = (puckPos - cam.transform.position).normalized;
+        Vector3 camFwd   = cam.transform.forward;
+        float   dotFwd   = Vector3.Dot(toPuck, camFwd);
+        bool    behindCam = dotFwd < 0f;
 
-        Vector3 toPuck = (puckPos - camPos).normalized;
-
-        // If the puck is behind the camera, we still want the indicator to
-        // point toward it, so we use the raw (not projected) direction.
-        float dotFwd = Vector3.Dot(toPuck, camFwd);
-        bool behindCamera = dotFwd < 0f;
-
-        // Project onto camera plane for angle calculation
-        Vector3 projected;
-        if (behindCamera)
+        // Yaw angle in degrees: 0 = straight ahead, - = leftward, + = rightward.
+        // Horizontal angle from camera to puck projected onto the camera plane.
+        float yaw;
+        if (behindCam)
         {
-            // For behind-camera: use the direction projected onto camera plane,
-            // which naturally points opposite (arrow will appear on near edge)
-            projected = toPuck;
+            yaw = Mathf.Atan2(
+                      Vector3.Dot(toPuck, cam.transform.right),
+                      -Vector3.Dot(toPuck, camFwd))
+                 * Mathf.Rad2Deg;
         }
         else
         {
-            // Remove the forward component so we get a pure screen-plane direction
-            projected = toPuck - camFwd * dotFwd;
-            if (projected.sqrMagnitude < 0.0001f)
-            {
-                // Puck is directly ahead but off-screen (e.g. way above/below)
-                projected = camUp;
-            }
-            projected.Normalize();
+            yaw = Mathf.Atan2(
+                      Vector3.Dot(toPuck, cam.transform.right),
+                      Vector3.Dot(toPuck, camFwd))
+                 * Mathf.Rad2Deg;
         }
 
-        // Compute yaw angle in camera space (-180..+180, 0 = center)
-        float yaw = Mathf.Atan2(
-            Vector3.Dot(projected, camRight),
-            Vector3.Dot(projected, behindCamera ? -camFwd : camFwd)
-        ) * Mathf.Rad2Deg;
+        // ── Map yaw/pitch to a screen-edge position ────────────────────
+        // Convert angles to normalised coords in [-1,1] where (±1,±1)
+        // are the corners of the screen.
+        float hfov = cam.fieldOfView * Mathf.Max(cam.aspect, 0.01f);
+        float vfov = cam.fieldOfView;
 
-        // Absolute offsets for elevation
-        float pitch = Mathf.Asin(Mathf.Clamp(
-            behindCamera ? -Vector3.Dot(toPuck, camUp) : Vector3.Dot(toPuck, camUp),
-            -1f, 1f)) * Mathf.Rad2Deg;
+        // Normalise so that ~half-FOV → ±1
+        float nx = Mathf.Clamp(yaw / (hfov * 0.55f), -1f, 1f);
 
-        // --- Map the yaw angle to a screen edge position ---
-        float margin = profile.puckIndicatorEdgeMargin;
-        float size = profile.puckIndicatorArrowSize;
-        Color color = profile.puckIndicatorArrowColor;
-        color.a = profile.puckIndicatorOpacity;
-        float sw = Screen.width;
-        float sh = Screen.height;
+        // Vertical axis: world-space height delta with deadzone.
+        // Positive heightDelta (puck above camera) → positive ny →
+        //   arrow at TOP of screen (screen Y increases downward in
+        //   Unity UI, so +ny → +Y → bottom... wait, in Unity UI
+        //   Toolkit top=0 is the TOP, so +Y goes DOWN.
+        //   A puck ABOVE the camera should show the arrow at the
+        //   TOP of the screen (small Y), so positive heightDelta
+        //   must produce NEGATIVE ny.
+        float heightDelta = puckPos.y - cam.transform.position.y;
+        float heightDeadzone = 0.4f;
+        float effectiveHeight = Mathf.Max(0f, Mathf.Abs(heightDelta) - heightDeadzone)
+                                * Mathf.Sign(heightDelta);
+        // Invert: puck above camera (positive delta) → ny negative → arrow at top
+        float nyRaw = effectiveHeight * 6f / (vfov * 0.55f);
+        float ny = Mathf.Clamp(nyRaw, -1f, 1f);
 
-        // Use atan-based proportional mapping: the further off-center the angle,
-        // the closer to the corner the indicator appears.
-        // For a typical ~90° horizontal FOV, ±45° maps to screen edges.
-        float angleRangeH = cam.fieldOfView * cam.aspect; // approx horizontal FOV
-        float angleRangeV = cam.fieldOfView;
+        // Map normalised coords to a point on the screen rectangle.
+        //  nx = -1 → left edge, nx = +1 → right edge, etc.
+        //  We use a "ray from center" approach: cast a ray from
+        //  screen centre in direction (nx, ny) and find where it
+        //  hits the inset border.
+        Vector2 centre = new Vector2(Screen.width * 0.5f, Screen.height * 0.5f);
+        Vector2 dir    = new Vector2(nx, ny);
+        float margin   = profile.puckIndicatorEdgeMargin;
+        Vector2 targetPos;   // pixel position of arrow centre
+        float   targetRot;   // clockwise degrees (0 = pointing right)
 
-        // Normalized position along each axis (-1 to +1 based on angle / half-fov)
-        float normX = Mathf.Clamp(yaw / (angleRangeH * 0.6f), -1f, 1f);
-        float normY = Mathf.Clamp(pitch / (angleRangeV * 0.6f), -1f, 1f);
-
-        // Squash toward edges (makes it behave more like NHL)
-        normX = Mathf.Sign(normX) * Mathf.Pow(Mathf.Abs(normX), 0.7f);
-        normY = Mathf.Sign(normY) * Mathf.Pow(Mathf.Abs(normY), 0.7f);
-
-        // Determine which edge is closest based on angle
-        // Compute the angle's dominance: is it more horizontal or vertical?
-        float absYaw = Mathf.Abs(yaw);
-        float absPitch = Mathf.Abs(pitch);
-
-        // Elevation tilt for the arrow
-        float elevationAngle = 0f;
-        if (profile.puckIndicatorShowElevation)
+        if (Mathf.Abs(dir.x) < 0.001f && Mathf.Abs(dir.y) < 0.001f)
         {
-            try
-            {
-                var localPlayer = PlayerManager.Instance?.GetLocalPlayer();
-                if (localPlayer?.PlayerBody?.transform != null)
-                {
-                    float heightDelta = puckPos.y - localPlayer.PlayerBody.transform.position.y;
-                    elevationAngle = Mathf.Clamp(heightDelta * 5f, -25f, 25f);
-                }
-            }
-            catch { /* elevation is best-effort */ }
-        }
-
-        // Map to a single edge using the angle.
-        // Divide the 360° around into 4 sectors centered on each edge.
-        // Threshold: if absYaw > absPitch, use left/right; otherwise top/bottom.
-        float edgePos; // proportional position along the chosen edge (0..1)
-
-        if (absYaw >= absPitch)
-        {
-            // Left or right edge
-            edgePos = 0.5f - normY * 0.5f; // 0=top, 1=bottom of edge
-
-            if (yaw < 0f)
-            {
-                // Left
-                float x = margin;
-                float y = margin + (sh - 2f * margin) * edgePos - size * 0.5f;
-                PositionArrow(_leftArrow, x, y, -45f + elevationAngle, color, size);
-                _rightArrow.style.display = DisplayStyle.None;
-            }
-            else
-            {
-                // Right
-                float x = sw - size - margin;
-                float y = margin + (sh - 2f * margin) * edgePos - size * 0.5f;
-                PositionArrow(_rightArrow, x, y, 45f + elevationAngle, color, size);
-                _leftArrow.style.display = DisplayStyle.None;
-            }
-            _topArrow.style.display = DisplayStyle.None;
-            _bottomArrow.style.display = DisplayStyle.None;
+            // Degenerate: puck is exactly ahead in z but off in y.
+            // Place arrow at top-centre, pointing up.
+            targetPos = new Vector2(centre.x, Screen.height - margin);
+            targetRot = -90f;
         }
         else
         {
-            // Top or bottom edge
-            edgePos = 0.5f + normX * 0.5f; // 0=left, 1=right of edge
+            // Normalise direction so the longer component is ±1
+            float absX = Mathf.Abs(dir.x);
+            float absY = Mathf.Abs(dir.y);
+            float scale = Mathf.Max(absX, absY);
+            Vector2 ndir = dir / scale; // one component is ±1, the other is in [-1,1]
 
-            if (pitch > 0f)
-            {
-                // Top
-                float x = margin + (sw - 2f * margin) * edgePos - size * 0.5f;
-                float y = sh - size - margin;
-                PositionArrow(_topArrow, x, y, 135f + elevationAngle, color, size);
-                _bottomArrow.style.display = DisplayStyle.None;
-            }
+            // The screen rectangle half-size (inset by margin)
+            float rectHalfW = Screen.width  * 0.5f - margin;
+            float rectHalfH = Screen.height * 0.5f - margin;
+
+            // Scale so we hit the nearer edge
+            float t;
+            if (Mathf.Abs(ndir.x) > Mathf.Abs(ndir.y))
+                t = rectHalfW / Mathf.Abs(ndir.x);
             else
-            {
-                // Bottom
-                float x = margin + (sw - 2f * margin) * edgePos - size * 0.5f;
-                float y = margin;
-                PositionArrow(_bottomArrow, x, y, -135f + elevationAngle, color, size);
-                _topArrow.style.display = DisplayStyle.None;
-            }
-            _leftArrow.style.display = DisplayStyle.None;
-            _rightArrow.style.display = DisplayStyle.None;
+                t = rectHalfH / Mathf.Abs(ndir.y);
+
+            targetPos = centre + ndir * t;
+
+            // Clamp to be safe
+            targetPos.x = Mathf.Clamp(targetPos.x, margin, Screen.width  - margin);
+            targetPos.y = Mathf.Clamp(targetPos.y, margin, Screen.height - margin);
+
+            // Arrow rotation: the triangle points right (0°) by default,
+            // so we rotate by the *opposite* of the direction from centre
+            // to puck, i.e. the arrow tip faces toward the puck.
+            // But we want the arrow on the edge with its tip pointing
+            // *inward* toward the puck, so the arrow should point from
+            // the edge toward the puck = opposite of ndir.
+            targetRot = Mathf.Atan2(-ndir.y, -ndir.x) * Mathf.Rad2Deg;
         }
+
+        // ── Smoothing ──────────────────────────────────────────────────
+        float lerpT = 1f - Mathf.Exp(-22f * Time.deltaTime); // ~93% in 100ms
+        _smoothPos.x = Mathf.Lerp(_smoothPos.x, targetPos.x, lerpT);
+        _smoothPos.y = Mathf.Lerp(_smoothPos.y, targetPos.y, lerpT);
+
+        // Rotation lerp across 360° wrap
+        float rotDiff = Mathf.DeltaAngle(_smoothRot, targetRot);
+        _smoothRot = Mathf.LerpAngle(_smoothRot, _smoothRot + rotDiff, lerpT);
+
+        _targetAlpha = 1f;
+        _smoothAlpha = Mathf.Lerp(_smoothAlpha, _targetAlpha, lerpT);
+
+        // ── Apply to the VisualElement ─────────────────────────────────
+        float size    = profile.puckIndicatorArrowSize;
+        Color baseCol = profile.puckIndicatorArrowColor;
+        baseCol.a     = profile.puckIndicatorOpacity * _smoothAlpha;
+
+        float halfW = size * 0.5f;
+        float halfH = size * 0.35f;   // make it slightly wider than tall
+
+        _arrow.style.left              = _smoothPos.x - halfH;
+        _arrow.style.top               = _smoothPos.y - halfW;
+        _arrow.style.width             = halfH;
+        _arrow.style.height            = size;
+        _arrow.style.rotate            = new Rotate(_smoothRot);
+        _arrow.style.borderRightColor  = new StyleColor(baseCol);
+        _arrow.style.borderTopWidth    = halfW;
+        _arrow.style.borderBottomWidth = halfW;
+        _arrow.style.borderLeftWidth   = 0;
+        _arrow.style.borderRightWidth  = halfH * 1.5f;
+        _arrow.style.display           = DisplayStyle.Flex;
+
+        // ── Elevation indicator ────────────────────────────────────────
+        // (hooked up separately if we add a label later — for now
+        //  the colour already adjusts via opacity.)
     }
 
+    private static void FadeOut()
+    {
+        float lerpT = 1f - Mathf.Exp(-18f * Time.deltaTime);
+        _targetAlpha = 0f;
+        _smoothAlpha = Mathf.Lerp(_smoothAlpha, _targetAlpha, lerpT);
+
+        if (_smoothAlpha < 0.01f)
+            _arrow.style.display = DisplayStyle.None;
+    }
+
+    // ── Camera helper ─────────────────────────────────────────────────
+
     /// <summary>
-    /// Gets the local player's camera. Falls back to Camera.main if unavailable.
-    /// In Puck, Camera.main can be a spectator cam that follows the puck,
-    /// so we need to find the camera that belongs to the human player.
+    /// Returns the camera component that belongs to the local gameplay
+    /// player.  Falls back to Camera.main.
     /// </summary>
-    private static Camera GetLocalPlayerCamera()
+    private static Camera FindCamera()
     {
         try
         {
-            // First try: find the camera on the local player's GameObject
-            var localPlayer = PlayerManager.Instance?.GetLocalPlayer();
-            if (localPlayer?.gameObject != null)
+            if (_cam != null && _cam.enabled) return _cam;
+
+            var lp = PlayerManager.Instance?.GetLocalPlayer();
+            if (lp != null && lp.gameObject != null)
             {
-                var playerCam = localPlayer.gameObject.GetComponentInChildren<Camera>(true);
-                if (playerCam != null && playerCam.enabled)
-                    return playerCam;
+                var c = lp.gameObject.GetComponentInChildren<Camera>(true);
+                if (c != null && c.enabled) { _cam = c; return c; }
             }
 
-            // Second try: Camera.main
-            if (_camera == null)
-                _camera = Camera.main;
-            return _camera;
+            _cam = Camera.main;
+            return _cam;
         }
-        catch (Exception ex)
-        {
-            Plugin.LogError($"PuckIndicatorSwapper.GetLocalPlayerCamera: {ex.Message}");
-            return null;
-        }
+        catch { return null; }
     }
 
-    private static void PositionArrow(VisualElement arrow, float x, float y, float rotation, Color color, float size)
-    {
-        arrow.style.left = x;
-        arrow.style.top = y;
-        arrow.style.width = size;
-        arrow.style.height = size;
-        arrow.style.backgroundColor = new StyleColor(color);
-        // Make a diamond shape
-        arrow.style.borderTopLeftRadius = new Length(size * 0.1f, LengthUnit.Pixel);
-        arrow.style.borderTopRightRadius = new Length(size * 0.1f, LengthUnit.Pixel);
-        arrow.style.borderBottomLeftRadius = new Length(size * 0.1f, LengthUnit.Pixel);
-        arrow.style.borderBottomRightRadius = new Length(size * 0.1f, LengthUnit.Pixel);
-        arrow.style.rotate = new Rotate(rotation);
-        // Shift pivot to center for proper rotation
-        arrow.style.position = Position.Absolute;
-        arrow.style.display = DisplayStyle.Flex;
-    }
-
-    private static void HideAllArrows()
-    {
-        if (_leftArrow != null) _leftArrow.style.display = DisplayStyle.None;
-        if (_rightArrow != null) _rightArrow.style.display = DisplayStyle.None;
-        if (_topArrow != null) _topArrow.style.display = DisplayStyle.None;
-        if (_bottomArrow != null) _bottomArrow.style.display = DisplayStyle.None;
-    }
-
-    // ---------------------------------------------------------------
-    //  Puck finding
-    // ---------------------------------------------------------------
+    // ── Puck helper ───────────────────────────────────────────────────
 
     private static Puck FindActivePuck()
     {
         try
         {
             if (PuckManager.Instance == null) return null;
+            var list = PuckManager.Instance.GetPucks();
+            if (list == null) return null;
 
-            List<Puck> pucks = PuckManager.Instance.GetPucks();
-            if (pucks == null || pucks.Count == 0) return null;
-
-            // Return the first active, non-null puck
-            foreach (Puck p in pucks)
-            {
+            foreach (var p in list)
                 if (p != null && p.gameObject != null && p.gameObject.activeInHierarchy)
                     return p;
-            }
-
             return null;
         }
-        catch (Exception ex)
-        {
-            Plugin.LogError($"PuckIndicatorSwapper.FindActivePuck: {ex.Message}");
-            return null;
-        }
+        catch { return null; }
     }
 
-    // ---------------------------------------------------------------
-    //  Helper MonoBehaviour
-    // ---------------------------------------------------------------
+    // ── Helper MonoBehaviour ───────────────────────────────────────────
 
-    /// <summary>
-    /// Lightweight ticker attached to the UIManager GameObject.
-    /// Calls LateTick() each LateUpdate to reposition the puck indicator arrows.
-    /// </summary>
     internal class PuckIndicatorTicker : MonoBehaviour
     {
         private void LateUpdate()
         {
-            try
-            {
-                LateTick();
-            }
+            try { Tick(); }
             catch (Exception ex)
             {
-                Plugin.LogError($"PuckIndicatorSwapper.Tick: {ex.Message}");
+                // Don't spam — only log once per session
+                if (_applied)
+                {
+                    _applied = false;
+                    Plugin.LogError($"PuckIndicatorSwapper tick: {ex}");
+                }
             }
         }
     }
