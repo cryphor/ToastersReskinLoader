@@ -45,7 +45,8 @@ public static class ToasterReskinLoaderAPI
 
     /// <summary>Whether custom team colors are enabled by the user.</summary>
     public static bool TeamColorsEnabled =>
-        ReskinProfileManager.currentProfile?.teamColorsEnabled ?? false;
+        (ReskinProfileManager.currentProfile?.blueTeamColorEnabled ?? false)
+        || (ReskinProfileManager.currentProfile?.redTeamColorEnabled ?? false);
 
     /// <summary>The user's custom blue team color, or the default if not customized.</summary>
     public static Color BlueTeamColor =>

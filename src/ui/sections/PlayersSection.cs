@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using ToasterReskinLoader.presets;
+using ToasterReskinLoader.swappers;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -29,7 +30,8 @@ public static class PlayersSection
     private static Color EffectiveTeamColor(PresetTeam team)
     {
         var p = ReskinProfileManager.currentProfile;
-        if (p.teamColorsEnabled)
+        bool enabled = team == PresetTeam.Blue ? p.blueTeamColorEnabled : p.redTeamColorEnabled;
+        if (enabled)
             return team == PresetTeam.Blue ? p.blueTeamColor : p.redTeamColor;
         return team == PresetTeam.Blue ? Defaults.blueTeamColor : Defaults.redTeamColor;
     }
@@ -89,6 +91,8 @@ public static class PlayersSection
         heading.style.marginBottom = 8;
         _root.Add(heading);
 
+        RenderTeamIdentity();
+
         var cellFields = CellFields(_team, _role);
         var appearance = cellFields.Where(f => f.Group != "Sticks" && f.Group != "Tape").ToList();
         var teamStick = cellFields.FirstOrDefault(f => f.Group == "Sticks" && !f.Id.Contains("Personal"));
@@ -114,6 +118,59 @@ public static class PlayersSection
         if (personalStick != null) RenderField(personalStick, "Your stick skin");
 
         Preview();
+    }
+
+    // Team-level identity (name + custom color) — shared by both roles, part of the
+    // shareable reskin profile.
+    private static void RenderTeamIdentity()
+    {
+        var profile = ReskinProfileManager.currentProfile;
+        bool blue = _team == PresetTeam.Blue;
+
+        _root.Add(SubHeading("Team identity", "Shared by both roles — name and custom UI color for this team."));
+
+        var nameRow = UITools.CreateConfigurationRow();
+        nameRow.Add(UITools.CreateConfigurationLabel("Team name"));
+        var nameField = UITools.CreateConfigurationTextField(blue ? profile.blueTeamName : profile.redTeamName);
+        nameField.style.flexGrow = 1;
+        nameField.style.marginLeft = 8;
+        nameField.RegisterValueChangedCallback(evt =>
+        {
+            if (blue) profile.blueTeamName = evt.newValue; else profile.redTeamName = evt.newValue;
+            ReskinProfileManager.SaveProfile();
+            try { TeamColorSwapper.RefreshAll(); } catch { }
+        });
+        nameRow.Add(nameField);
+        _root.Add(nameRow);
+
+        var enableRow = UITools.CreateConfigurationRow();
+        enableRow.Add(UITools.CreateConfigurationLabel("Custom team color"));
+        var enableToggle = UITools.CreateConfigurationCheckbox(blue ? profile.blueTeamColorEnabled : profile.redTeamColorEnabled);
+        enableToggle.RegisterValueChangedCallback(evt =>
+        {
+            if (blue) profile.blueTeamColorEnabled = evt.newValue; else profile.redTeamColorEnabled = evt.newValue;
+            RefreshTeamColors();
+            Render(); // refresh the team toggle button color
+        });
+        enableRow.Add(enableToggle);
+        _root.Add(enableRow);
+
+        var colorRow = UITools.CreateColorConfigurationRow(
+            "Team color",
+            blue ? profile.blueTeamColor : profile.redTeamColor,
+            false,
+            c => { if (blue) profile.blueTeamColor = c; else profile.redTeamColor = c; RefreshTeamColors(); },
+            ReskinProfileManager.SaveProfile);
+        _root.Add(colorRow);
+    }
+
+    private static void RefreshTeamColors()
+    {
+        ReskinProfileManager.SaveProfile();
+        try { TeamColorSwapper.RefreshAll(); } catch { }
+        try { ArenaSwapper.UpdateGoalFrameColors(); } catch { }
+        try { TeamIndicatorSwapper.UpdateVisibility(); } catch { }
+        try { ToasterReskinLoaderAPI.NotifyTeamColorsChanged(); } catch { }
     }
 
     // Coarse category for a cell field, used for the in-editor sub-headings.

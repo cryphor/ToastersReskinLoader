@@ -458,8 +458,13 @@ public static class ReskinProfileManager
                     : defaultProfile.redGoalieShaftTapeColor,
 
                 // Team Colors
-                teamColorsEnabled = serializableProfile.TeamColorsEnabled
-                    ?? defaultProfile.teamColorsEnabled,
+                // Per-team enable; migrate the legacy single toggle to both sides.
+                blueTeamColorEnabled = serializableProfile.BlueTeamColorEnabled
+                    ?? serializableProfile.TeamColorsEnabled
+                    ?? defaultProfile.blueTeamColorEnabled,
+                redTeamColorEnabled = serializableProfile.RedTeamColorEnabled
+                    ?? serializableProfile.TeamColorsEnabled
+                    ?? defaultProfile.redTeamColorEnabled,
                 blueTeamColor = serializableProfile.BlueTeamColor != null
                     ? (Color)serializableProfile.BlueTeamColor
                     : defaultProfile.blueTeamColor,
@@ -719,7 +724,8 @@ public static class ReskinProfileManager
                 RedGoalieShaftTapeColor = new SerializableColor(currentProfile.redGoalieShaftTapeColor),
 
                 // Team Colors
-                TeamColorsEnabled = currentProfile.teamColorsEnabled,
+                BlueTeamColorEnabled = currentProfile.blueTeamColorEnabled,
+                RedTeamColorEnabled = currentProfile.redTeamColorEnabled,
                 BlueTeamColor = new SerializableColor(currentProfile.blueTeamColor),
                 RedTeamColor = new SerializableColor(currentProfile.redTeamColor),
                 BlueTeamName = currentProfile.blueTeamName,
@@ -1008,7 +1014,8 @@ public static class ReskinProfileManager
 
         var defaultValues = new Profile();
 
-        currentProfile.teamColorsEnabled = defaultValues.teamColorsEnabled;
+        currentProfile.blueTeamColorEnabled = defaultValues.blueTeamColorEnabled;
+        currentProfile.redTeamColorEnabled = defaultValues.redTeamColorEnabled;
         currentProfile.blueTeamColor = defaultValues.blueTeamColor;
         currentProfile.redTeamColor = defaultValues.redTeamColor;
         currentProfile.blueTeamName = defaultValues.blueTeamName;
@@ -1243,9 +1250,11 @@ public static class ReskinProfileManager
         [PresetField("Tape", "Goalie shaft color")]
         public Color redGoalieShaftTapeColor = Color.white;
 
-        // UI section
-        [PresetField("Team Colors", "Enabled")]
-        public bool teamColorsEnabled = false;
+        // Team colors (per-team enable — replaced the single teamColorsEnabled toggle)
+        [PresetField("Team Colors", "Custom color enabled")]
+        public bool blueTeamColorEnabled = false;
+        [PresetField("Team Colors", "Custom color enabled")]
+        public bool redTeamColorEnabled = false;
         [PresetField("Team Colors", "Color")]
         public Color blueTeamColor = new Color(0.231f, 0.510f, 0.965f, 1f); // #3b82f6
         [PresetField("Team Colors", "Color")]
@@ -1551,8 +1560,13 @@ public static class ReskinProfileManager
         public List<ReskinReference> PuckListRef { get; set; } = new List<ReskinReference>();
 
         // TEAM COLORS
+        // Legacy single toggle — kept for read-only migration into the per-team flags.
         [JsonProperty("teamColorsEnabled")]
         public bool? TeamColorsEnabled { get; set; }
+        [JsonProperty("blueTeamColorEnabled")]
+        public bool? BlueTeamColorEnabled { get; set; }
+        [JsonProperty("redTeamColorEnabled")]
+        public bool? RedTeamColorEnabled { get; set; }
         [JsonProperty("blueTeamColor")]
         public SerializableColor BlueTeamColor { get; set; }
         [JsonProperty("redTeamColor")]

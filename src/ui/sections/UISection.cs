@@ -34,122 +34,11 @@ public static class UISection
     public static void CreateSection(VisualElement contentScrollViewContent)
     {
         Label description = UITools.CreateConfigurationLabel(
-            "Customize team colors across all UI elements: scoreboard, goal announcements, minimap, chat, team/position select, goal frames, and more.");
+            "Personal display settings: team indicator, minimap, and chat. " +
+            "Team colors and names are now set per-team in the Players tab.");
         description.style.marginBottom = 12;
         description.style.whiteSpace = WhiteSpace.Normal;
         contentScrollViewContent.Add(description);
-
-        var dependentControls = new List<VisualElement>();
-
-        // Enable toggle
-        VisualElement enableRow = UITools.CreateConfigurationRow();
-        enableRow.Add(UITools.CreateConfigurationLabel("Enable Custom Team Colors"));
-
-        Toggle enableToggle = UITools.CreateConfigurationCheckbox(ReskinProfileManager.currentProfile.teamColorsEnabled);
-        enableToggle.value = ReskinProfileManager.currentProfile.teamColorsEnabled;
-        enableToggle.RegisterCallback<ChangeEvent<bool>>(evt =>
-        {
-            ReskinProfileManager.currentProfile.teamColorsEnabled = evt.newValue;
-            ReskinProfileManager.SaveProfile();
-            ArenaSwapper.UpdateGoalFrameColors();
-            TeamIndicatorSwapper.UpdateVisibility();
-            TeamColorSwapper.RefreshAll();
-            ToasterReskinLoaderAPI.NotifyTeamColorsChanged();
-            UITools.UpdateDependentControlsState(dependentControls, evt.newValue);
-        });
-        enableRow.Add(enableToggle);
-        contentScrollViewContent.Add(enableRow);
-
-        // Blue team color
-        var blueColorSection = UITools.CreateColorConfigurationRow(
-            "<b>Blue Team Color</b>",
-            ReskinProfileManager.currentProfile.blueTeamColor,
-            false,
-            newColor =>
-            {
-                ReskinProfileManager.currentProfile.blueTeamColor = newColor;
-                ArenaSwapper.UpdateGoalFrameColors();
-                TeamIndicatorSwapper.UpdateVisibility();
-                TeamColorSwapper.RefreshAll();
-                ToasterReskinLoaderAPI.NotifyTeamColorsChanged();
-            },
-            () => { ReskinProfileManager.SaveProfile(); }
-        );
-        contentScrollViewContent.Add(blueColorSection);
-        dependentControls.Add(blueColorSection);
-
-        // Red team color
-        var redColorSection = UITools.CreateColorConfigurationRow(
-            "<b>Red Team Color</b>",
-            ReskinProfileManager.currentProfile.redTeamColor,
-            false,
-            newColor =>
-            {
-                ReskinProfileManager.currentProfile.redTeamColor = newColor;
-                ArenaSwapper.UpdateGoalFrameColors();
-                TeamIndicatorSwapper.UpdateVisibility();
-                TeamColorSwapper.RefreshAll();
-                ToasterReskinLoaderAPI.NotifyTeamColorsChanged();
-            },
-            () => { ReskinProfileManager.SaveProfile(); }
-        );
-        contentScrollViewContent.Add(redColorSection);
-        dependentControls.Add(redColorSection);
-
-        // Team names
-        VisualElement blueNameRow = UITools.CreateConfigurationRow();
-        blueNameRow.Add(UITools.CreateConfigurationLabel("Blue Team Name"));
-        var blueNameField = CreateTextInput(
-            ReskinProfileManager.currentProfile.blueTeamName,
-            "BLUE",
-            val =>
-            {
-                ReskinProfileManager.currentProfile.blueTeamName = val;
-                ReskinProfileManager.SaveProfile();
-            });
-        blueNameRow.Add(blueNameField);
-        contentScrollViewContent.Add(blueNameRow);
-        dependentControls.Add(blueNameRow);
-
-        VisualElement redNameRow = UITools.CreateConfigurationRow();
-        redNameRow.Add(UITools.CreateConfigurationLabel("Red Team Name"));
-        var redNameField = CreateTextInput(
-            ReskinProfileManager.currentProfile.redTeamName,
-            "RED",
-            val =>
-            {
-                ReskinProfileManager.currentProfile.redTeamName = val;
-                ReskinProfileManager.SaveProfile();
-            });
-        redNameRow.Add(redNameField);
-        contentScrollViewContent.Add(redNameRow);
-        dependentControls.Add(redNameRow);
-
-        Label nameNote = UITools.CreateConfigurationLabel(
-            "Leave blank to use default names. Used in goal announcements (e.g. \"BLUE SCORES!\").");
-        nameNote.style.marginTop = 4;
-        nameNote.style.fontSize = 13;
-        nameNote.style.color = new Color(0.7f, 0.7f, 0.7f);
-        nameNote.style.whiteSpace = WhiteSpace.Normal;
-        contentScrollViewContent.Add(nameNote);
-        dependentControls.Add(nameNote);
-
-        Label note = UITools.CreateConfigurationLabel(
-            "UI color changes apply on the next UI update (next goal, chat message, scoreboard refresh, etc.). Goal frames and team indicator update immediately.");
-        note.style.marginTop = 8;
-        note.style.fontSize = 13;
-        note.style.color = new Color(0.7f, 0.7f, 0.7f);
-        note.style.whiteSpace = WhiteSpace.Normal;
-        contentScrollViewContent.Add(note);
-        dependentControls.Add(note);
-
-        // Separator
-        VisualElement separator = new VisualElement();
-        separator.style.height = 1;
-        separator.style.backgroundColor = new Color(0.4f, 0.4f, 0.4f);
-        separator.style.marginTop = 16;
-        separator.style.marginBottom = 16;
-        contentScrollViewContent.Add(separator);
 
         // Team Indicator toggle
         VisualElement indicatorRow = UITools.CreateConfigurationRow();
@@ -430,9 +319,6 @@ public static class UISection
                 SaveQoL();
                 ApplyQuickChatPosition();
             });
-
-        // Set initial state
-        UITools.UpdateDependentControlsState(dependentControls, ReskinProfileManager.currentProfile.teamColorsEnabled);
     }
 
     private static void CreateSliderRow(
