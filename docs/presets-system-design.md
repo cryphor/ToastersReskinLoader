@@ -1,9 +1,10 @@
 # Presets System — Design
 
-Status (branch `presets`): **phases 1–5 implemented** (registry, model/codec/store, apply,
-Presets UI, pack distribution) — compiles, not yet runtime-tested in-game. Remaining: phase 6
-(`Load`/`Save` migration onto descriptors, gated by a round-trip test) and the deferred polish
-(thumbnails, sidebar reorg). This document captures the agreed model.
+Status (branch `presets`): **phases 1–5 + 8 implemented** (registry, model/codec/store, apply,
+Presets UI, pack distribution, and the collapsible sidebar reorg) — compiles, not yet
+runtime-tested in-game. Remaining: phase 6 (`Load`/`Save` migration onto descriptors, gated by a
+round-trip test) and phase 7 (thumbnails, deferred/out-of-scope). This document captures the
+agreed model.
 
 ## Goal
 
