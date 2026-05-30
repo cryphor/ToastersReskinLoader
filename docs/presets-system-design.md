@@ -84,8 +84,10 @@ full preset can even be applied mirrored for free).
 
 ## Preset file format
 
-A preset file = a small header + a sparse `SerializableProfile`. Sparse JSON falls out for
-free by serializing with `NullValueHandling.Ignore` so only set fields are written.
+A preset file = a small header + a **sparse `fields` map keyed by descriptor id** (the Profile
+field name from the registry). Each value is encoded by the field's kind: primitives raw, colors
+as `{r,g,b,a}`, reskin references as `{packId, entryName, reskinType, workshopId}`, ref lists as
+an array of those. Only the saved fields appear, so the file is naturally sparse.
 
 ```jsonc
 {
@@ -93,15 +95,20 @@ free by serializing with `NullValueHandling.Ignore` so only set fields are writt
   "presetFormatVersion": 1,
   "teamScoped": "blue",          // null | "blue" | "red"  — computed; drives the "which team?" prompt
   "dependencies": [              // computed from the reskin refs used; for missing-pack warnings
-    { "packId": "habs-pack", "workshopId": 123456, "name": "Habs Reskins" }
+    { "packId": "habs", "workshopId": 123456, "name": "Habs Reskins" }
   ],
   "fields": {
-    // a SerializableProfile with ONLY the saved settings present
-    "blueSkaterTorsoRef": { "packId": "...", "entryName": "...", "workshopId": 0 },
-    "blueTeamColor": { "r": 0.8, "g": 0.1, "b": 0.1, "a": 1 }
+    "blueSkaterTorso": { "packId": "habs", "entryName": "home_torso", "reskinType": "jersey_torso", "workshopId": 123456 },
+    "blueTeamColor":   { "r": 0.8, "g": 0.1, "b": 0.1, "a": 1 },
+    "skyboxExposure":  1.3
   }
 }
 ```
+
+Keys are the registry's descriptor ids (`blueSkaterTorso`), **not** the legacy
+`reskinprofile.json` keys (`blueSkaterTorsoRef`). Presets are a new format, so this avoids
+maintaining a second `Profile ↔ SerializableProfile` mapping just for presets — the registry is
+the single source. The legacy profile format is unchanged (see Backwards compatibility).
 
 Same file shape everywhere — user presets, standalone shared files, and pack-bundled presets
 are all this format. Storage locations differ only by folder (see Distribution).
