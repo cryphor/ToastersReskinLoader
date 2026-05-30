@@ -29,28 +29,18 @@ public static class PresetManager
         DefaultValueHandling = DefaultValueHandling.Include
     };
 
-    /// <summary>
-    /// Ensures the presets directory exists. Called on first access.
-    /// </summary>
     private static void EnsureFolder()
     {
         if (!Directory.Exists(PresetsFolder))
             Directory.CreateDirectory(PresetsFolder);
     }
 
-    /// <summary>
-    /// Returns the full file path for a given preset name.
-    /// </summary>
     private static string GetFilePath(string presetName)
     {
-        // Sanitize the filename – strip characters that are illegal on Windows.
         string safe = string.Join("_", presetName.Split(Path.GetInvalidFileNameChars()));
         return Path.Combine(PresetsFolder, safe + FileExtension);
     }
 
-    /// <summary>
-    /// Returns all saved presets, sorted alphabetically by name.
-    /// </summary>
     public static List<PresetInfo> GetPresets()
     {
         EnsureFolder();
@@ -65,7 +55,7 @@ public static class PresetManager
                 if (data != null)
                 {
                     data.Name = data.Name ?? Path.GetFileNameWithoutExtension(file);
-                    data.file = file;
+                    data.FilePath = file;
                     presets.Add(new PresetInfo(data.Name, file, data.SavedAt));
                 }
             }
@@ -79,9 +69,6 @@ public static class PresetManager
         return presets;
     }
 
-    /// <summary>
-    /// Saves the current profile as a named preset. Overwrites if it already exists.
-    /// </summary>
     public static void SavePreset(string name)
     {
         EnsureFolder();
@@ -92,10 +79,6 @@ public static class PresetManager
         Plugin.Log($"Preset '{name}' saved to {path}");
     }
 
-    /// <summary>
-    /// Loads a preset by file path and applies it to the current profile.
-    /// Returns true on success.
-    /// </summary>
     public static bool LoadPreset(string filePath)
     {
         try
@@ -117,7 +100,6 @@ public static class PresetManager
             data.ApplyToCurrentProfile();
             Plugin.Log($"Preset '{data.Name}' loaded from {filePath}");
 
-            // After loading, apply everything to the game
             ReskinProfileManager.LoadTexturesForActiveReskins();
             SwapperManager.SetAll();
             PuckFXSwapper.ApplyAll();
@@ -132,18 +114,12 @@ public static class PresetManager
         }
     }
 
-    /// <summary>
-    /// Loads a preset by name (convenience wrapper).
-    /// </summary>
     public static bool LoadPresetByName(string name)
     {
         string path = GetFilePath(name);
         return LoadPreset(path);
     }
 
-    /// <summary>
-    /// Deletes a preset by file path. Returns true if the file was removed.
-    /// </summary>
     public static bool DeletePreset(string filePath)
     {
         try
@@ -163,9 +139,6 @@ public static class PresetManager
         }
     }
 
-    /// <summary>
-    /// Renames a preset file. Returns true on success.
-    /// </summary>
     public static bool RenamePreset(string oldFilePath, string newName)
     {
         try
@@ -179,7 +152,6 @@ public static class PresetManager
                 return false;
             }
 
-            // Read, update name in data, write to new path, delete old
             string json = File.ReadAllText(oldFilePath);
             var data = JsonConvert.DeserializeObject<PresetData>(json);
             if (data == null) return false;
@@ -198,9 +170,6 @@ public static class PresetManager
         }
     }
 
-    /// <summary>
-    /// Checks whether a preset name already exists on disk.
-    /// </summary>
     public static bool PresetExists(string name)
     {
         return File.Exists(GetFilePath(name));
@@ -208,11 +177,6 @@ public static class PresetManager
 
     // ── Data container ──────────────────────────────────────────────────
 
-    /// <summary>
-    /// Serializable snapshot of the entire reskin profile.
-    /// This is a flattened copy of ReskinProfileManager.SerializableProfile
-    /// with a name and timestamp tacked on for the preset catalog.
-    /// </summary>
     [Serializable]
     public class PresetData
     {
@@ -225,7 +189,11 @@ public static class PresetManager
         [JsonProperty("version")]
         public int Version { get; set; } = 1;
 
-        // Everything below is a mirror of the SerializableProfile fields.
+        /// <summary>
+        /// Not serialized. Set at runtime for UI convenience.
+        /// </summary>
+        [JsonIgnore]
+        public string FilePath { get; set; }
 
         // Sticks
         [JsonProperty("stickAttackerBlueRef")]
@@ -330,6 +298,16 @@ public static class PresetManager
         public float? BlueGoalieNumberOutlineWidth { get; set; }
         [JsonProperty("redGoalieNumberOutlineWidth")]
         public float? RedGoalieNumberOutlineWidth { get; set; }
+
+        // Jersey number outline widths
+        [JsonProperty("blueSkaterNumberOutlineWidth2")]
+        public float? BlueSkaterNumberOutlineWidth2 { get; set; }
+        [JsonProperty("redSkaterNumberOutlineWidth2")]
+        public float? RedSkaterNumberOutlineWidth2 { get; set; }
+        [JsonProperty("blueGoalieNumberOutlineWidth2")]
+        public float? BlueGoalieNumberOutlineWidth2 { get; set; }
+        [JsonProperty("redGoalieNumberOutlineWidth2")]
+        public float? RedGoalieNumberOutlineWidth2 { get; set; }
 
         // Puck
         [JsonProperty("puckRef")]
@@ -464,9 +442,6 @@ public static class PresetManager
         [JsonProperty("glossAffectPlayers")] public bool? GlossAffectPlayers { get; set; }
         [JsonProperty("glossAffectPucks")] public bool? GlossAffectPucks { get; set; }
 
-        /// <summary>
-        /// Creates a PresetData by serializing the current profile.
-        /// </summary>
         public static PresetData FromCurrentProfile(string name)
         {
             var p = ReskinProfileManager.currentProfile;
@@ -634,9 +609,6 @@ public static class PresetManager
             };
         }
 
-        /// <summary>
-        /// Hydrates the current profile from this preset's data, then saves it.
-        /// </summary>
         public void ApplyToCurrentProfile()
         {
             var p = ReskinProfileManager.currentProfile;
@@ -802,17 +774,15 @@ public static class PresetManager
             ReskinProfileManager.SaveProfile();
         }
 
-        // ── Helpers (same patterns as ReskinProfileManager) ──────────
-
         private static ReskinRegistry.ReskinEntry FindEntry(ReskinProfileManager.ReskinReference reference, string type)
         {
             if (reference == null || string.IsNullOrEmpty(reference.PackId))
                 return null;
 
-            var pack = ReskinRegistry.reskinPacks.FirstOrDefault(p => p.UniqueId == reference.PackId);
+            var pack = ReskinRegistry.reskinPacks.FirstOrDefault(pack => pack.UniqueId == reference.PackId);
             if (pack == null) return null;
 
-            return pack.Reskins?.FirstOrDefault(e => e.Name == reference.EntryName && e.Type == type);
+            return pack.Reskins?.FirstOrDefault(entry => entry.Name == reference.EntryName && entry.Type == type);
         }
 
         private static ReskinProfileManager.ReskinReference CreateRef(ReskinRegistry.ReskinEntry entry)
@@ -829,9 +799,6 @@ public static class PresetManager
         }
     }
 
-    /// <summary>
-    /// Lightweight info about a saved preset (for listing in the UI).
-    /// </summary>
     public class PresetInfo
     {
         public string Name { get; }
@@ -845,9 +812,6 @@ public static class PresetManager
             SavedAt = savedAt;
         }
 
-        /// <summary>
-        /// Returns a user-friendly display string for the save timestamp.
-        /// </summary>
         public string GetDisplayDate()
         {
             if (DateTime.TryParse(SavedAt, out var dt))
