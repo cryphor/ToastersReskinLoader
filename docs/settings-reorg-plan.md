@@ -1,5 +1,9 @@
 # Settings reorg — move personal/perf settings out of the reskin profile
 
+Status: **implemented (stages A–G)** — shadows, gloss, minimap, chat, team indicator moved to
+the QoL profile with one-time migration; team colors reworked to per-team enables and surfaced
+in the Players editor; menu regrouped (HUD + Display). Not yet runtime-tested in-game.
+
 Goal: keep the reskin profile (and therefore presets) to the shareable *look*. Personal,
 performance, and HUD settings move to the QoL profile (`config/…QoL.json`, not shared). Team
 colors stay in the reskin profile but become part of the per-team setup.
