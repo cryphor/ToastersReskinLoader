@@ -117,4 +117,14 @@ public class QoLConfig
     public float devConsoleW = 900f;
     public float devConsoleH = 460f;
 
+    // ── Display settings (moved out of the reskin profile — personal/perf, not shared) ──
+    // Shadows (CrispyShadows). Defaults mirror the old reskin-profile defaults.
+    public bool  crispyShadowsEnabled = true;
+    public int   shadowResolution = 8192;
+    public float shadowDistance = 50f;
+    public int   shadowCascadeCount = 4;
+    public bool  shadowSoftShadows = true;
+
+    // One-time marker: display settings have been seeded from a pre-existing reskin profile.
+    public bool displaySettingsMigrated = false;
 }

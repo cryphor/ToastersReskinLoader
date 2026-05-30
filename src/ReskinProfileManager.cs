@@ -510,18 +510,6 @@ public static class ReskinProfileManager
                 chatRenderAllEmojis = serializableProfile.ChatRenderAllEmojis
                     ?? defaultProfile.chatRenderAllEmojis,
 
-                // Shadows (CrispyShadows)
-                crispyShadowsEnabled = serializableProfile.CrispyShadowsEnabled
-                    ?? defaultProfile.crispyShadowsEnabled,
-                shadowResolution = serializableProfile.ShadowResolution
-                    ?? defaultProfile.shadowResolution,
-                shadowDistance = serializableProfile.ShadowDistance
-                    ?? defaultProfile.shadowDistance,
-                shadowCascadeCount = serializableProfile.ShadowCascadeCount
-                    ?? defaultProfile.shadowCascadeCount,
-                shadowSoftShadows = serializableProfile.ShadowSoftShadows
-                    ?? defaultProfile.shadowSoftShadows,
-
                 // Skybox
                 skyboxAtmosphereThickness =
                     serializableProfile.SkyboxAtmosphereThickness
@@ -795,13 +783,6 @@ public static class ReskinProfileManager
                 QuickChatY = currentProfile.quickChatY,
                 ChatRenderAllEmojis = currentProfile.chatRenderAllEmojis,
 
-                // Shadows (CrispyShadows)
-                CrispyShadowsEnabled = currentProfile.crispyShadowsEnabled,
-                ShadowResolution = currentProfile.shadowResolution,
-                ShadowDistance = currentProfile.shadowDistance,
-                ShadowCascadeCount = currentProfile.shadowCascadeCount,
-                ShadowSoftShadows = currentProfile.shadowSoftShadows,
-
                 // Skybox
                 SkyboxAtmosphereThickness = currentProfile.skyboxAtmosphereThickness,
                 SkyboxExposure = currentProfile.skyboxExposure,
@@ -1071,27 +1052,6 @@ public static class ReskinProfileManager
         SaveProfile();
 
         ToasterReskinLoaderAPI.NotifyTeamColorsChanged();
-    }
-
-    /// <summary>
-    /// Resets only the shadow-related properties of the current profile
-    /// to their default values and saves the profile.
-    /// </summary>
-    public static void ResetShadowsToDefault()
-    {
-        Plugin.Log("Resetting shadow settings to their default values.");
-
-        var defaultValues = new Profile();
-
-        currentProfile.crispyShadowsEnabled = defaultValues.crispyShadowsEnabled;
-        currentProfile.shadowResolution = defaultValues.shadowResolution;
-        currentProfile.shadowDistance = defaultValues.shadowDistance;
-        currentProfile.shadowCascadeCount = defaultValues.shadowCascadeCount;
-        currentProfile.shadowSoftShadows = defaultValues.shadowSoftShadows;
-
-        SaveProfile();
-
-        swappers.CrispyShadowsSwapper.Apply();
     }
 
     /// <summary>
@@ -1404,17 +1364,7 @@ public static class ReskinProfileManager
         [PresetField("Chat", "Render all emojis")]
         public bool chatRenderAllEmojis = true;
 
-        // Shadows section (CrispyShadows)
-        [PresetField("Shadows", "Enabled")]
-        public bool crispyShadowsEnabled = true;
-        [PresetField("Shadows", "Resolution")]
-        public int shadowResolution = 8192;
-        [PresetField("Shadows", "Distance")]
-        public float shadowDistance = 50f;
-        [PresetField("Shadows", "Cascade count")]
-        public int shadowCascadeCount = 4;
-        [PresetField("Shadows", "Soft shadows")]
-        public bool shadowSoftShadows = true;
+        // Shadows moved to the QoL profile (personal/perf) — see QoLConfig.
 
         // Skybox section
         [PresetField("Skybox", "Atmosphere thickness")]
@@ -1759,18 +1709,6 @@ public static class ReskinProfileManager
         public float? QuickChatY { get; set; }
         [JsonProperty("chatRenderAllEmojis")]
         public bool? ChatRenderAllEmojis { get; set; }
-
-        // SHADOWS (CrispyShadows)
-        [JsonProperty("crispyShadowsEnabled")]
-        public bool? CrispyShadowsEnabled { get; set; }
-        [JsonProperty("shadowResolution")]
-        public int? ShadowResolution { get; set; }
-        [JsonProperty("shadowDistance")]
-        public float? ShadowDistance { get; set; }
-        [JsonProperty("shadowCascadeCount")]
-        public int? ShadowCascadeCount { get; set; }
-        [JsonProperty("shadowSoftShadows")]
-        public bool? ShadowSoftShadows { get; set; }
 
         // SKYBOX
         [JsonProperty("skyboxAtmosphereThickness")]

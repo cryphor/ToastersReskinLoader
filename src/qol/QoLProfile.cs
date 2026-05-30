@@ -115,6 +115,20 @@ public class QoLProfile
     [JsonProperty("devConsoleH")]
     public float DevConsoleH { get; set; } = 460f;
 
+    // Display settings (moved out of the reskin profile)
+    [JsonProperty("crispyShadowsEnabled")]
+    public bool CrispyShadowsEnabled { get; set; } = true;
+    [JsonProperty("shadowResolution")]
+    public int ShadowResolution { get; set; } = 8192;
+    [JsonProperty("shadowDistance")]
+    public float ShadowDistance { get; set; } = 50f;
+    [JsonProperty("shadowCascadeCount")]
+    public int ShadowCascadeCount { get; set; } = 4;
+    [JsonProperty("shadowSoftShadows")]
+    public bool ShadowSoftShadows { get; set; } = true;
+    [JsonProperty("displaySettingsMigrated")]
+    public bool DisplaySettingsMigrated { get; set; } = false;
+
     public QoLConfig ToConfig()
     {
         return new QoLConfig
@@ -164,6 +178,12 @@ public class QoLProfile
             devConsoleY = DevConsoleY,
             devConsoleW = DevConsoleW,
             devConsoleH = DevConsoleH,
+            crispyShadowsEnabled = CrispyShadowsEnabled,
+            shadowResolution = ShadowResolution,
+            shadowDistance = ShadowDistance,
+            shadowCascadeCount = ShadowCascadeCount,
+            shadowSoftShadows = ShadowSoftShadows,
+            displaySettingsMigrated = DisplaySettingsMigrated,
         };
     }
 
@@ -215,6 +235,12 @@ public class QoLProfile
         DevConsoleY = c.devConsoleY;
         DevConsoleW = c.devConsoleW;
         DevConsoleH = c.devConsoleH;
+        CrispyShadowsEnabled = c.crispyShadowsEnabled;
+        ShadowResolution = c.shadowResolution;
+        ShadowDistance = c.shadowDistance;
+        ShadowCascadeCount = c.shadowCascadeCount;
+        ShadowSoftShadows = c.shadowSoftShadows;
+        DisplaySettingsMigrated = c.displaySettingsMigrated;
     }
 }
 
