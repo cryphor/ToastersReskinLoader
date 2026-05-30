@@ -1,7 +1,9 @@
 # Presets System — Design
 
-Status: **draft / planning** (branch `presets`). No code written yet; this captures
-the agreed model before implementation.
+Status (branch `presets`): **phases 1–5 implemented** (registry, model/codec/store, apply,
+Presets UI, pack distribution) — compiles, not yet runtime-tested in-game. Remaining: phase 6
+(`Load`/`Save` migration onto descriptors, gated by a round-trip test) and the deferred polish
+(thumbnails, sidebar reorg). This document captures the agreed model.
 
 ## Goal
 
