@@ -1184,17 +1184,17 @@ public static class ReskinProfileManager
         public ReskinRegistry.ReskinEntry  redGoalieTorso;
         [PresetField("Goalies", "Jersey groin", ReskinType = "jersey_groin")]
         public ReskinRegistry.ReskinEntry  redGoalieGroin;
-        [PresetField("Goalies", "Left pad", ReskinType = "legpad")]
+        [PresetField("Goalies", "Left pad", ReskinType = "legpad", Role = PresetRole.Goalie)]
         public ReskinRegistry.ReskinEntry blueLegPadLeft;
-        [PresetField("Goalies", "Right pad", ReskinType = "legpad")]
+        [PresetField("Goalies", "Right pad", ReskinType = "legpad", Role = PresetRole.Goalie)]
         public ReskinRegistry.ReskinEntry blueLegPadRight;
-        [PresetField("Goalies", "Left pad", ReskinType = "legpad")]
+        [PresetField("Goalies", "Left pad", ReskinType = "legpad", Role = PresetRole.Goalie)]
         public ReskinRegistry.ReskinEntry redLegPadLeft;
-        [PresetField("Goalies", "Right pad", ReskinType = "legpad")]
+        [PresetField("Goalies", "Right pad", ReskinType = "legpad", Role = PresetRole.Goalie)]
         public ReskinRegistry.ReskinEntry redLegPadRight;
-        [PresetField("Goalies", "Pad default color")]
+        [PresetField("Goalies", "Pad default color", Role = PresetRole.Goalie)]
         public Color blueLegPadDefaultColor = new Color(0.151f, 0.151f, 0.151f, 1f);
-        [PresetField("Goalies", "Pad default color")]
+        [PresetField("Goalies", "Pad default color", Role = PresetRole.Goalie)]
         public Color redLegPadDefaultColor = new Color(0.151f, 0.151f, 0.151f, 1f);
         [PresetField("Goalies", "Helmet", ReskinType = "helmet")]
         public ReskinRegistry.ReskinEntry blueGoalieHelmet;

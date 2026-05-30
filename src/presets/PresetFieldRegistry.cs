@@ -35,6 +35,15 @@ public enum PresetTeam
     Red,
 }
 
+public enum PresetRole
+{
+    /// Attribute default — registry resolves the role from the field name.
+    Auto,
+    None,
+    Skater,
+    Goalie,
+}
+
 public enum PresetValueKind
 {
     Bool,
@@ -65,6 +74,11 @@ public sealed class PresetFieldAttribute : Attribute
     /// Override team detection. Auto (default) derives the side from the field name.
     public PresetTeam Team { get; set; } = PresetTeam.Auto;
 
+    /// Override role detection. Auto (default) derives the role from the field name
+    /// (Skater/Attacker -> Skater, Goalie -> Goalie). Set explicitly for role-specific
+    /// fields whose name lacks the token (e.g. goalie leg pads).
+    public PresetRole Role { get; set; } = PresetRole.Auto;
+
     public PresetFieldAttribute(string group, string display)
     {
         Group = group;
@@ -79,6 +93,7 @@ public sealed class PresetField
     public string DisplayName { get; }
     public string Group { get; }
     public PresetTeam Team { get; }
+    public PresetRole Role { get; }
     public string SwapPartnerId { get; }   // opposite-team field id, or null
     public PresetValueKind Kind { get; }
     public string ReskinType { get; }      // for ReskinRef/List, else null
@@ -86,13 +101,14 @@ public sealed class PresetField
     private readonly FieldInfo _field;
 
     internal PresetField(FieldInfo field, string display, string group, PresetTeam team,
-        string swapPartnerId, PresetValueKind kind, string reskinType)
+        PresetRole role, string swapPartnerId, PresetValueKind kind, string reskinType)
     {
         _field = field;
         Id = field.Name;
         DisplayName = display;
         Group = group;
         Team = team;
+        Role = role;
         SwapPartnerId = swapPartnerId;
         Kind = kind;
         ReskinType = reskinType;
@@ -143,8 +159,9 @@ public static class PresetFieldRegistry
             if (attr == null) continue; // opt-in only
 
             var (team, partner) = ResolveTeam(fi.Name, attr.Team);
+            var role = ResolveRole(fi.Name, attr.Role);
             var kind = ResolveKind(fi.FieldType);
-            result.Add(new PresetField(fi, attr.Display, attr.Group, team, partner, kind, attr.ReskinType));
+            result.Add(new PresetField(fi, attr.Display, attr.Group, team, role, partner, kind, attr.ReskinType));
         }
 
         return result;
@@ -163,6 +180,17 @@ public static class PresetFieldRegistry
         if (name.Contains("Blue") || name.Contains("blue")) return (PresetTeam.Blue, SwapBlueRed(name));
         if (name.Contains("Red") || name.Contains("red")) return (PresetTeam.Red, SwapBlueRed(name));
         return (PresetTeam.None, null);
+    }
+
+    /// Role from the field name: Skater/Attacker -> Skater, Goalie -> Goalie, else None.
+    /// The override handles role-specific fields whose name lacks a token (e.g. leg pads).
+    private static PresetRole ResolveRole(string name, PresetRole over)
+    {
+        if (over != PresetRole.Auto) return over;
+        if (name.Contains("Skater") || name.Contains("skater")
+            || name.Contains("Attacker") || name.Contains("attacker")) return PresetRole.Skater;
+        if (name.Contains("Goalie") || name.Contains("goalie")) return PresetRole.Goalie;
+        return PresetRole.None;
     }
 
     private static string SwapBlueRed(string name)
