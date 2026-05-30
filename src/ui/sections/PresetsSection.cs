@@ -477,7 +477,9 @@ public static class PresetsSection
         quick.Add(QuickFill("Clear", toggles, _ => true, false));
         _root.Add(quick);
 
-        // tree: bucket -> group -> field
+        // tree: bucket -> role -> category -> field
+        _children.Clear();
+        _parent.Clear();
         BuildBucket("Blue Team", PresetTeam.Blue, toggles);
         BuildBucket("Red Team", PresetTeam.Red, toggles);
         BuildBucket("Global", PresetTeam.None, toggles);
@@ -537,7 +539,7 @@ public static class PresetsSection
         var fields = PresetFieldRegistry.All.Where(f => f.Team == team).ToList();
         if (fields.Count == 0) return;
 
-        var bucketToggle = UITools.CreateConfigurationCheckbox(false);
+        var bucketToggle = NewCheckbox();
         var (header, body, _) = MakeCollapsible(label, bucketToggle, 16, true);
         _root.Add(header);
         _root.Add(body);
@@ -566,14 +568,14 @@ public static class PresetsSection
                 childToggles.Add(BuildRoleNode(body, "Goalie", goalie, 18, toggles));
         }
 
-        WireParent(bucketToggle, childToggles);
+        RegisterGroup(bucketToggle, childToggles);
     }
 
     // A role node (Skater / Goalie): its own checkbox + a body of category subsections.
     private static Toggle BuildRoleNode(VisualElement parentBody, string name, List<PresetField> fields,
         int leftMargin, Dictionary<string, Toggle> toggles)
     {
-        var nodeToggle = UITools.CreateConfigurationCheckbox(false);
+        var nodeToggle = NewCheckbox();
         var (header, body, _) = MakeCollapsible(name, nodeToggle, 14, false);
         header.style.marginLeft = leftMargin;
         body.style.marginLeft = leftMargin + 4;
@@ -584,7 +586,7 @@ public static class PresetsSection
         foreach (var cat in fields.GroupBy(CategoryOf).OrderBy(g => CategoryIndex(g.Key)))
             catToggles.Add(BuildCategorySection(body, cat.Key, cat.ToList(), leftMargin + 18, toggles));
 
-        WireParent(nodeToggle, catToggles);
+        RegisterGroup(nodeToggle, catToggles);
         return nodeToggle;
     }
 
@@ -592,7 +594,7 @@ public static class PresetsSection
     private static Toggle BuildCategorySection(VisualElement parentBody, string name, List<PresetField> fields,
         int leftMargin, Dictionary<string, Toggle> toggles)
     {
-        var catToggle = UITools.CreateConfigurationCheckbox(false);
+        var catToggle = NewCheckbox();
         var (header, body, _) = MakeCollapsible(name, catToggle, 13, false);
         header.style.marginLeft = leftMargin;
         body.style.marginLeft = leftMargin + 16;
@@ -605,7 +607,7 @@ public static class PresetsSection
             var row = UITools.CreateRow();
             row.style.marginTop = 2;
             row.style.marginBottom = 2;
-            var t = UITools.CreateConfigurationCheckbox(false);
+            var t = NewCheckbox();
             t.style.marginRight = 8;
             row.Add(t);
             var nameLabel = UITools.CreateConfigurationLabel(field.DisplayName);
@@ -617,7 +619,7 @@ public static class PresetsSection
             leaves.Add(t);
         }
 
-        WireParent(catToggle, leaves);
+        RegisterGroup(catToggle, leaves);
         return catToggle;
     }
 
@@ -752,28 +754,49 @@ public static class PresetsSection
 
     // Parent reflects "all children ticked"; ticking the parent sets all children. A guard
     // prevents the parent<->child callbacks from re-triggering each other.
-    private static void WireParent(Toggle parent, List<Toggle> children)
+    // Tree checkbox wiring. We deliberately avoid the "set parent/child .value inside a callback"
+    // pattern: Unity queues nested ChangeEvents rather than dispatching them synchronously, which
+    // breaks any re-entrancy guard (a stale queued event would clear the whole group). Instead
+    // every cascade uses SetValueWithoutNotify and explicit parent/child walks, so the only
+    // callbacks that ever fire are genuine user clicks.
+    private static readonly Dictionary<Toggle, List<Toggle>> _children = new();
+    private static readonly Dictionary<Toggle, Toggle> _parent = new();
+
+    private static Toggle NewCheckbox()
     {
-        bool suppress = false;
-        parent.RegisterValueChangedCallback(evt =>
+        var t = UITools.CreateConfigurationCheckbox(false);
+        t.RegisterValueChangedCallback(evt => OnUserToggle(t, evt.newValue));
+        return t;
+    }
+
+    private static void RegisterGroup(Toggle parent, List<Toggle> children)
+    {
+        _children[parent] = children;
+        foreach (var c in children) _parent[c] = parent;
+    }
+
+    private static void OnUserToggle(Toggle toggle, bool value)
+    {
+        CascadeDown(toggle, value);
+        var p = _parent.TryGetValue(toggle, out var pp) ? pp : null;
+        while (p != null)
         {
-            if (suppress) return;
-            suppress = true;
-            foreach (var c in children) c.value = evt.newValue;
-            suppress = false;
-            ApplyTriState(parent, children);
-        });
-        foreach (var c in children)
-        {
-            c.RegisterValueChangedCallback(_ =>
-            {
-                if (suppress) return;
-                suppress = true;
-                parent.value = children.All(x => x.value);
-                suppress = false;
-                ApplyTriState(parent, children);
-            });
+            var kids = _children[p];
+            p.SetValueWithoutNotify(kids.All(k => k.value));
+            ApplyTriState(p, kids);
+            p = _parent.TryGetValue(p, out var gp) ? gp : null;
         }
+    }
+
+    private static void CascadeDown(Toggle toggle, bool value)
+    {
+        if (!_children.TryGetValue(toggle, out var kids)) return;
+        foreach (var k in kids)
+        {
+            k.SetValueWithoutNotify(value);
+            CascadeDown(k, value);
+        }
+        ApplyTriState(toggle, kids);
     }
 
     // Unity Toggle has no indeterminate state, so overlay a dash on the checkbox when some — but
