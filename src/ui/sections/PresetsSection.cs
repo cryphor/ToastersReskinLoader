@@ -26,15 +26,16 @@ public static class PresetsSection
     // transient per-row UI state (keyed by preset file path)
     private static string _confirmDeletePath;
     private static string _renamingPath;
-    private static string _applyTeamPath;
 
     public static void CreateSection(VisualElement contentScrollViewContent)
     {
         ChangingRoomHelper.ShowBaseFocus();
         _root = contentScrollViewContent;
-        _confirmDeletePath = _renamingPath = _applyTeamPath = null;
+        _confirmDeletePath = _renamingPath = null;
         RenderList();
     }
+
+    private static string Plural(int n, string noun) => $"{n} {noun}{(n == 1 ? "" : "s")}";
 
     // ───────────────────────── list view ─────────────────────────
 
@@ -160,7 +161,7 @@ public static class PresetsSection
         if (_renamingPath == preset.FilePath)
         {
             var row = UITools.CreateRow();
-            var field = new TextField { value = preset.PresetName };
+            var field = UITools.CreateConfigurationTextField(preset.PresetName);
             field.style.flexGrow = 1;
             field.style.marginRight = 8;
             row.Add(field);
@@ -198,9 +199,12 @@ public static class PresetsSection
         nameLabel.style.fontSize = 17;
         left.Add(nameLabel);
 
-        var meta = new List<string> { $"{preset.FieldIds.Count()} setting(s)" };
+        var meta = new List<string>
+        {
+            string.IsNullOrEmpty(preset.SourceLabel) ? "Local" : preset.SourceLabel,
+            Plural(preset.FieldIds.Count(), "setting"),
+        };
         if (preset.IsTeamScoped) meta.Add($"team preset ({preset.TeamScoped})");
-        if (preset.IsReadOnly && !string.IsNullOrEmpty(preset.SourceLabel)) meta.Add(preset.SourceLabel);
         var missing = PresetStore.GetMissingDependencies(preset);
         var metaLabel = UITools.CreateConfigurationLabel(string.Join("  •  ", meta));
         metaLabel.style.fontSize = 12;
@@ -209,7 +213,7 @@ public static class PresetsSection
         if (missing.Count > 0)
         {
             var warn = UITools.CreateConfigurationLabel(
-                $"⚠ missing {missing.Count} pack(s): {string.Join(", ", missing.Select(m => m.Name))}");
+                $"⚠ missing {Plural(missing.Count, "pack")}: {string.Join(", ", missing.Select(m => m.Name))}");
             warn.style.fontSize = 12;
             warn.style.color = new Color(0.95f, 0.75f, 0.4f);
             warn.style.whiteSpace = WhiteSpace.Normal;
@@ -225,19 +229,7 @@ public static class PresetsSection
         var applyBtn = new Button { text = "Apply" };
         UITools.StyleConfigButton(applyBtn);
         applyBtn.style.marginRight = 6;
-        applyBtn.RegisterCallback<ClickEvent>(_ =>
-        {
-            if (preset.IsTeamScoped)
-            {
-                _applyTeamPath = _applyTeamPath == preset.FilePath ? null : preset.FilePath;
-                RenderList();
-            }
-            else
-            {
-                var result = PresetApplier.Apply(preset);
-                ToastApplied(preset, result);
-            }
-        });
+        applyBtn.RegisterCallback<ClickEvent>(_ => RenderApplyConfirm(preset));
         right.Add(applyBtn);
 
         // Pack presets are read-only — apply only, no rename/delete.
@@ -268,29 +260,98 @@ public static class PresetsSection
 
         topRow.Add(right);
         container.Add(topRow);
+        return container;
+    }
 
-        // ── inline "apply to which team?" row ──
-        if (_applyTeamPath == preset.FilePath && preset.IsTeamScoped)
+    // ───────────────────────── apply confirmation ─────────────────────────
+
+    private static void RenderApplyConfirm(Preset preset)
+    {
+        _root.Clear();
+
+        var title = new Label($"Apply \"{preset.PresetName}\"");
+        title.style.fontSize = 28;
+        title.style.color = Color.white;
+        title.style.marginBottom = 6;
+        _root.Add(title);
+
+        var sub = UITools.CreateConfigurationLabel(
+            "This will change the following settings (anything not listed is left as-is):");
+        sub.style.color = new Color(0.7f, 0.7f, 0.7f);
+        sub.style.marginBottom = 10;
+        _root.Add(sub);
+
+        // Group the preset's fields by team bucket -> group for a readable summary.
+        var fields = preset.FieldIds
+            .Select(PresetFieldRegistry.ById)
+            .Where(f => f != null)
+            .ToList();
+
+        foreach (var bucket in new[] { PresetTeam.Blue, PresetTeam.Red, PresetTeam.None })
+        {
+            var bucketFields = fields.Where(f => f.Team == bucket).ToList();
+            if (bucketFields.Count == 0) continue;
+
+            if (bucket != PresetTeam.None)
+            {
+                var b = UITools.CreateConfigurationLabel(bucket == PresetTeam.Blue ? "Blue-team settings" : "Red-team settings");
+                b.style.unityFontStyleAndWeight = FontStyle.Bold;
+                b.style.marginTop = 6;
+                _root.Add(b);
+            }
+
+            foreach (var group in bucketFields.GroupBy(f => f.Group).OrderBy(g => GroupIndex(g.Key)))
+            {
+                var line = UITools.CreateConfigurationLabel(
+                    $"• {group.Key}: {string.Join(", ", group.OrderBy(f => f.DisplayName).Select(f => f.DisplayName))}");
+                line.style.fontSize = 13;
+                line.style.color = new Color(0.85f, 0.85f, 0.85f);
+                line.style.whiteSpace = WhiteSpace.Normal;
+                line.style.marginLeft = 8;
+                _root.Add(line);
+            }
+        }
+
+        var missing = PresetStore.GetMissingDependencies(preset);
+        if (missing.Count > 0)
+        {
+            var warn = UITools.CreateConfigurationLabel(
+                $"⚠ {Plural(missing.Count, "pack")} not installed — those reskins will be skipped: "
+                + string.Join(", ", missing.Select(m => m.Name)));
+            warn.style.color = new Color(0.95f, 0.75f, 0.4f);
+            warn.style.whiteSpace = WhiteSpace.Normal;
+            warn.style.marginTop = 8;
+            _root.Add(warn);
+        }
+
+        // Action buttons: team choice for team presets, else a single Apply.
+        var btnRow = UITools.CreateRow();
+        btnRow.style.marginTop = 14;
+
+        if (preset.IsTeamScoped)
         {
             var profile = ReskinProfileManager.currentProfile;
             string blueName = string.IsNullOrWhiteSpace(profile.blueTeamName) ? "Blue" : profile.blueTeamName;
             string redName = string.IsNullOrWhiteSpace(profile.redTeamName) ? "Red" : profile.redTeamName;
 
-            var teamRow = UITools.CreateRow();
-            teamRow.style.marginTop = 8;
-            var prompt = UITools.CreateConfigurationLabel("Apply to which team?");
-            prompt.style.marginRight = 10;
-            teamRow.Add(prompt);
-
-            teamRow.Add(MakeTeamButton(blueName, preset, PresetTeam.Blue));
-            teamRow.Add(MakeTeamButton(redName, preset, PresetTeam.Red));
-            container.Add(teamRow);
+            btnRow.Add(UITools.CreateConfigurationLabel("Apply to:"));
+            var spacer = new VisualElement(); spacer.style.width = 8; btnRow.Add(spacer);
+            btnRow.Add(MakeApplyButton($"{blueName} team", preset, PresetTeam.Blue));
+            btnRow.Add(MakeApplyButton($"{redName} team", preset, PresetTeam.Red));
+        }
+        else
+        {
+            btnRow.Add(MakeApplyButton("Apply", preset, PresetTeam.None));
         }
 
-        return container;
+        var cancel = new Button { text = "Cancel" };
+        UITools.StyleConfigButton(cancel);
+        cancel.RegisterCallback<ClickEvent>(_ => RenderList());
+        btnRow.Add(cancel);
+        _root.Add(btnRow);
     }
 
-    private static Button MakeTeamButton(string label, Preset preset, PresetTeam team)
+    private static Button MakeApplyButton(string label, Preset preset, PresetTeam team)
     {
         var btn = new Button { text = label };
         UITools.StyleConfigButton(btn);
@@ -298,7 +359,6 @@ public static class PresetsSection
         btn.RegisterCallback<ClickEvent>(_ =>
         {
             var result = PresetApplier.Apply(preset, team);
-            _applyTeamPath = null;
             ToastApplied(preset, result);
         });
         return btn;
@@ -320,7 +380,7 @@ public static class PresetsSection
         var nameRow = UITools.CreateRow();
         nameRow.style.marginBottom = 10;
         nameRow.Add(UITools.CreateConfigurationLabel("Name:"));
-        var nameField = new TextField { value = "" };
+        var nameField = UITools.CreateConfigurationTextField("");
         nameField.style.flexGrow = 1;
         nameField.style.marginLeft = 8;
         nameRow.Add(nameField);
@@ -383,7 +443,7 @@ public static class PresetsSection
             string targetDir = destField != null && destinations.TryGetValue(destField.value, out var d) ? d : null;
             PresetStore.Save(preset, targetDir);
             string where = destField != null ? destField.value : PresetStore.SourceUser;
-            Toast("Saved", $"Preset \"{preset.PresetName}\" saved to {where} ({selected.Count} setting(s)).");
+            Toast("Saved", $"Preset \"{preset.PresetName}\" saved to {where} ({Plural(selected.Count, "setting")}).");
             RenderList();
         });
         btnRow.Add(save);
@@ -527,9 +587,9 @@ public static class PresetsSection
 
     private static void ToastApplied(Preset preset, PresetApplyResult result)
     {
-        string msg = $"{result.AppliedCount} setting(s) applied"
+        string msg = $"{Plural(result.AppliedCount, "setting")} applied"
             + (result.TeamSwapped ? " (team-swapped)" : "")
-            + (result.MissingDependencies.Count > 0 ? $". Missing {result.MissingDependencies.Count} pack(s)." : ".");
+            + (result.MissingDependencies.Count > 0 ? $". Missing {Plural(result.MissingDependencies.Count, "pack")}." : ".");
         Toast($"Applied \"{preset.PresetName}\"", msg);
         RenderList();
     }
