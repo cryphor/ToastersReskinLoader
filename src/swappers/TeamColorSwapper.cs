@@ -79,7 +79,7 @@ public static class TeamColorSwapper
                         if (!kvp.Key || !kvp.Key.Player) continue;
 
                         // Local player icon color is handled by MinimapSwapper
-                        if (profile != null && profile.localPlayerMinimapIconEnabled && kvp.Key.Player.IsLocalPlayer)
+                        if (profile != null && (qol.QoLRunner.Instance?.Config?.localPlayerMinimapIconEnabled ?? false) && kvp.Key.Player.IsLocalPlayer)
                             continue;
 
                         Color? c = GetOverrideColor(kvp.Key.Player.Team);
@@ -166,7 +166,7 @@ public static class TeamColorSwapper
                 var profile = ReskinProfileManager.currentProfile;
 
                 // Local player icon color takes priority over team color
-                if (profile != null && profile.localPlayerMinimapIconEnabled && playerBody.Player.IsLocalPlayer)
+                if (profile != null && (qol.QoLRunner.Instance?.Config?.localPlayerMinimapIconEnabled ?? false) && playerBody.Player.IsLocalPlayer)
                     return;
 
                 Color? c = GetOverrideColor(playerBody.Player.Team);

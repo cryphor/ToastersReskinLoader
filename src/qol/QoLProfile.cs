@@ -5,6 +5,7 @@
 // below) so reskin profiles can be shared without leaking them.
 
 using Newtonsoft.Json;
+using UnityEngine;
 
 namespace ToasterReskinLoader.qol;
 
@@ -136,6 +137,25 @@ public class QoLProfile
     public bool GlossAffectPlayers { get; set; } = true;
     [JsonProperty("glossAffectPucks")]
     public bool GlossAffectPucks { get; set; } = true;
+    // Minimap
+    [JsonProperty("blueMinimapNumberColor")]
+    public SerializableColor BlueMinimapNumberColor { get; set; } = new SerializableColor(Color.white);
+    [JsonProperty("redMinimapNumberColor")]
+    public SerializableColor RedMinimapNumberColor { get; set; } = new SerializableColor(Color.white);
+    [JsonProperty("minimapPuckColor")]
+    public SerializableColor MinimapPuckColor { get; set; } = new SerializableColor(new Color(0f, 0f, 0f, 1f));
+    [JsonProperty("minimapPlayerScale")]
+    public float MinimapPlayerScale { get; set; } = 1f;
+    [JsonProperty("minimapPuckScale")]
+    public float MinimapPuckScale { get; set; } = 1f;
+    [JsonProperty("minimapRefreshRate")]
+    public int MinimapRefreshRate { get; set; } = 60;
+    [JsonProperty("localPlayerMinimapIconEnabled")]
+    public bool LocalPlayerMinimapIconEnabled { get; set; } = false;
+    [JsonProperty("blueLocalPlayerMinimapIconColor")]
+    public SerializableColor BlueLocalPlayerMinimapIconColor { get; set; } = new SerializableColor(new Color(0f, 1f, 0f, 1f));
+    [JsonProperty("redLocalPlayerMinimapIconColor")]
+    public SerializableColor RedLocalPlayerMinimapIconColor { get; set; } = new SerializableColor(new Color(0f, 1f, 0f, 1f));
     [JsonProperty("displaySettingsMigrated")]
     public bool DisplaySettingsMigrated { get; set; } = false;
 
@@ -198,6 +218,15 @@ public class QoLProfile
             glossAffectSticks = GlossAffectSticks,
             glossAffectPlayers = GlossAffectPlayers,
             glossAffectPucks = GlossAffectPucks,
+            blueMinimapNumberColor = BlueMinimapNumberColor != null ? (Color)BlueMinimapNumberColor : Color.white,
+            redMinimapNumberColor = RedMinimapNumberColor != null ? (Color)RedMinimapNumberColor : Color.white,
+            minimapPuckColor = MinimapPuckColor != null ? (Color)MinimapPuckColor : new Color(0f, 0f, 0f, 1f),
+            minimapPlayerScale = MinimapPlayerScale,
+            minimapPuckScale = MinimapPuckScale,
+            minimapRefreshRate = MinimapRefreshRate,
+            localPlayerMinimapIconEnabled = LocalPlayerMinimapIconEnabled,
+            blueLocalPlayerMinimapIconColor = BlueLocalPlayerMinimapIconColor != null ? (Color)BlueLocalPlayerMinimapIconColor : new Color(0f, 1f, 0f, 1f),
+            redLocalPlayerMinimapIconColor = RedLocalPlayerMinimapIconColor != null ? (Color)RedLocalPlayerMinimapIconColor : new Color(0f, 1f, 0f, 1f),
             displaySettingsMigrated = DisplaySettingsMigrated,
         };
     }
@@ -260,6 +289,15 @@ public class QoLProfile
         GlossAffectSticks = c.glossAffectSticks;
         GlossAffectPlayers = c.glossAffectPlayers;
         GlossAffectPucks = c.glossAffectPucks;
+        BlueMinimapNumberColor = new SerializableColor(c.blueMinimapNumberColor);
+        RedMinimapNumberColor = new SerializableColor(c.redMinimapNumberColor);
+        MinimapPuckColor = new SerializableColor(c.minimapPuckColor);
+        MinimapPlayerScale = c.minimapPlayerScale;
+        MinimapPuckScale = c.minimapPuckScale;
+        MinimapRefreshRate = c.minimapRefreshRate;
+        LocalPlayerMinimapIconEnabled = c.localPlayerMinimapIconEnabled;
+        BlueLocalPlayerMinimapIconColor = new SerializableColor(c.blueLocalPlayerMinimapIconColor);
+        RedLocalPlayerMinimapIconColor = new SerializableColor(c.redLocalPlayerMinimapIconColor);
         DisplaySettingsMigrated = c.displaySettingsMigrated;
     }
 }

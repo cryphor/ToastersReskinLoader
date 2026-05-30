@@ -473,30 +473,7 @@ public static class ReskinProfileManager
                 redTeamName = serializableProfile.RedTeamName
                     ?? defaultProfile.redTeamName,
 
-                // Minimap
-                blueMinimapNumberColor = serializableProfile.BlueMinimapNumberColor != null
-                    ? (Color)serializableProfile.BlueMinimapNumberColor
-                    : defaultProfile.blueMinimapNumberColor,
-                redMinimapNumberColor = serializableProfile.RedMinimapNumberColor != null
-                    ? (Color)serializableProfile.RedMinimapNumberColor
-                    : defaultProfile.redMinimapNumberColor,
-                minimapPuckColor = serializableProfile.MinimapPuckColor != null
-                    ? (Color)serializableProfile.MinimapPuckColor
-                    : defaultProfile.minimapPuckColor,
-                minimapPlayerScale = serializableProfile.MinimapPlayerScale
-                    ?? defaultProfile.minimapPlayerScale,
-                minimapPuckScale = serializableProfile.MinimapPuckScale
-                    ?? defaultProfile.minimapPuckScale,
-                minimapRefreshRate = serializableProfile.MinimapRefreshRate
-                    ?? defaultProfile.minimapRefreshRate,
-                localPlayerMinimapIconEnabled = serializableProfile.LocalPlayerMinimapIconEnabled
-                    ?? defaultProfile.localPlayerMinimapIconEnabled,
-                blueLocalPlayerMinimapIconColor = serializableProfile.BlueLocalPlayerMinimapIconColor != null
-                    ? (Color)serializableProfile.BlueLocalPlayerMinimapIconColor
-                    : defaultProfile.blueLocalPlayerMinimapIconColor,
-                redLocalPlayerMinimapIconColor = serializableProfile.RedLocalPlayerMinimapIconColor != null
-                    ? (Color)serializableProfile.RedLocalPlayerMinimapIconColor
-                    : defaultProfile.redLocalPlayerMinimapIconColor,
+                // Minimap moved to the QoL profile (HUD) — see QoLConfig.
 
                 // Chat
                 chatHeight = serializableProfile.ChatHeight
@@ -760,16 +737,7 @@ public static class ReskinProfileManager
                 BlueTeamName = currentProfile.blueTeamName,
                 RedTeamName = currentProfile.redTeamName,
 
-                // Minimap
-                BlueMinimapNumberColor = new SerializableColor(currentProfile.blueMinimapNumberColor),
-                RedMinimapNumberColor = new SerializableColor(currentProfile.redMinimapNumberColor),
-                MinimapPuckColor = new SerializableColor(currentProfile.minimapPuckColor),
-                MinimapPlayerScale = currentProfile.minimapPlayerScale,
-                MinimapPuckScale = currentProfile.minimapPuckScale,
-                MinimapRefreshRate = currentProfile.minimapRefreshRate,
-                LocalPlayerMinimapIconEnabled = currentProfile.localPlayerMinimapIconEnabled,
-                BlueLocalPlayerMinimapIconColor = new SerializableColor(currentProfile.blueLocalPlayerMinimapIconColor),
-                RedLocalPlayerMinimapIconColor = new SerializableColor(currentProfile.redLocalPlayerMinimapIconColor),
+                // Minimap moved to the QoL profile (HUD) — see QoLConfig.
 
                 // Chat
                 ChatHeight = currentProfile.chatHeight,
@@ -1079,24 +1047,7 @@ public static class ReskinProfileManager
         SaveProfile();
     }
 
-    public static void ResetMinimapToDefault()
-    {
-        Plugin.Log("Resetting minimap settings to their default values.");
-
-        var defaultValues = new Profile();
-
-        currentProfile.blueMinimapNumberColor = defaultValues.blueMinimapNumberColor;
-        currentProfile.redMinimapNumberColor = defaultValues.redMinimapNumberColor;
-        currentProfile.minimapPuckColor = defaultValues.minimapPuckColor;
-        currentProfile.minimapPlayerScale = defaultValues.minimapPlayerScale;
-        currentProfile.minimapPuckScale = defaultValues.minimapPuckScale;
-        currentProfile.minimapRefreshRate = defaultValues.minimapRefreshRate;
-        currentProfile.localPlayerMinimapIconEnabled = defaultValues.localPlayerMinimapIconEnabled;
-        currentProfile.blueLocalPlayerMinimapIconColor = defaultValues.blueLocalPlayerMinimapIconColor;
-        currentProfile.redLocalPlayerMinimapIconColor = defaultValues.redLocalPlayerMinimapIconColor;
-
-        SaveProfile();
-    }
+    // Minimap reset moved to the QoL profile (UISection).
 
     public class Profile
     {
@@ -1323,25 +1274,7 @@ public static class ReskinProfileManager
         [PresetField("Team Colors", "Name")]
         public string redTeamName = "";
 
-        // Minimap section
-        [PresetField("Minimap", "Number color")]
-        public Color blueMinimapNumberColor = Color.white;
-        [PresetField("Minimap", "Number color")]
-        public Color redMinimapNumberColor = Color.white;
-        [PresetField("Minimap", "Puck color")]
-        public Color minimapPuckColor = new Color(0f, 0f, 0f, 1f);
-        [PresetField("Minimap", "Player scale")]
-        public float minimapPlayerScale = 1f;
-        [PresetField("Minimap", "Puck scale")]
-        public float minimapPuckScale = 1f;
-        [PresetField("Minimap", "Refresh rate")]
-        public int minimapRefreshRate = 60;
-        [PresetField("Minimap", "Local player icon enabled")]
-        public bool localPlayerMinimapIconEnabled = false;
-        [PresetField("Minimap", "Local player icon color")]
-        public Color blueLocalPlayerMinimapIconColor = new Color(0f, 1f, 0f, 1f);
-        [PresetField("Minimap", "Local player icon color")]
-        public Color redLocalPlayerMinimapIconColor = new Color(0f, 1f, 0f, 1f);
+        // Minimap moved to the QoL profile (HUD) — see QoLConfig.
 
         // Chat section
         [PresetField("Chat", "Height")]
@@ -1659,25 +1592,7 @@ public static class ReskinProfileManager
         [JsonProperty("redTeamName")]
         public string RedTeamName { get; set; }
 
-        // MINIMAP
-        [JsonProperty("blueMinimapNumberColor")]
-        public SerializableColor BlueMinimapNumberColor { get; set; }
-        [JsonProperty("redMinimapNumberColor")]
-        public SerializableColor RedMinimapNumberColor { get; set; }
-        [JsonProperty("minimapPuckColor")]
-        public SerializableColor MinimapPuckColor { get; set; }
-        [JsonProperty("minimapPlayerScale")]
-        public float? MinimapPlayerScale { get; set; }
-        [JsonProperty("minimapPuckScale")]
-        public float? MinimapPuckScale { get; set; }
-        [JsonProperty("minimapRefreshRate")]
-        public int? MinimapRefreshRate { get; set; }
-        [JsonProperty("localPlayerMinimapIconEnabled")]
-        public bool? LocalPlayerMinimapIconEnabled { get; set; }
-        [JsonProperty("blueLocalPlayerMinimapIconColor")]
-        public SerializableColor BlueLocalPlayerMinimapIconColor { get; set; }
-        [JsonProperty("redLocalPlayerMinimapIconColor")]
-        public SerializableColor RedLocalPlayerMinimapIconColor { get; set; }
+        // Minimap moved to the QoL profile (HUD) — see QoLConfig.
 
         // CHAT
         [JsonProperty("chatHeight")]

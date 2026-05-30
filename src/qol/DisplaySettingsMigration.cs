@@ -8,6 +8,7 @@
 using System;
 using System.IO;
 using Newtonsoft.Json.Linq;
+using UnityEngine;
 
 namespace ToasterReskinLoader.qol;
 
@@ -40,7 +41,18 @@ internal static class DisplaySettingsMigration
                 ReadBool(j, "glossAffectPlayers", v => cfg.glossAffectPlayers = v);
                 ReadBool(j, "glossAffectPucks", v => cfg.glossAffectPucks = v);
 
-                // (later stages: minimap / chat / team indicator keys go here)
+                // Minimap
+                ReadColor(j, "blueMinimapNumberColor", v => cfg.blueMinimapNumberColor = v);
+                ReadColor(j, "redMinimapNumberColor", v => cfg.redMinimapNumberColor = v);
+                ReadColor(j, "minimapPuckColor", v => cfg.minimapPuckColor = v);
+                ReadFloat(j, "minimapPlayerScale", v => cfg.minimapPlayerScale = v);
+                ReadFloat(j, "minimapPuckScale", v => cfg.minimapPuckScale = v);
+                ReadInt(j, "minimapRefreshRate", v => cfg.minimapRefreshRate = v);
+                ReadBool(j, "localPlayerMinimapIconEnabled", v => cfg.localPlayerMinimapIconEnabled = v);
+                ReadColor(j, "blueLocalPlayerMinimapIconColor", v => cfg.blueLocalPlayerMinimapIconColor = v);
+                ReadColor(j, "redLocalPlayerMinimapIconColor", v => cfg.redLocalPlayerMinimapIconColor = v);
+
+                // (later stages: chat / team indicator keys go here)
 
                 Plugin.Log("[QoL] Migrated display settings from the reskin profile.");
             }
@@ -67,5 +79,16 @@ internal static class DisplaySettingsMigration
     private static void ReadFloat(JObject j, string key, Action<float> set)
     {
         if (j.TryGetValue(key, out var t) && t.Type != JTokenType.Null) set(t.Value<float>());
+    }
+
+    // Reskin-profile colors are stored as { r, g, b, a } objects.
+    private static void ReadColor(JObject j, string key, Action<Color> set)
+    {
+        if (j.TryGetValue(key, out var t) && t is JObject o)
+            set(new Color(
+                o.Value<float?>("r") ?? 0f,
+                o.Value<float?>("g") ?? 0f,
+                o.Value<float?>("b") ?? 0f,
+                o.Value<float?>("a") ?? 1f));
     }
 }

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using ToasterReskinLoader.qol;
 using ToasterReskinLoader.swappers;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -9,6 +10,27 @@ namespace ToasterReskinLoader.ui.sections;
 
 public static class UISection
 {
+    // Minimap settings live in the QoL profile now (HUD). Team colors stay in the reskin profile.
+    private static QoLConfig Cfg => QoLRunner.Instance?.Config;
+    private static void SaveQoL() => QoLRunner.Instance?.SaveAndRefresh();
+
+    private static void ResetMinimapToDefault()
+    {
+        var d = new QoLConfig();
+        var c = Cfg;
+        if (c == null) return;
+        c.blueMinimapNumberColor = d.blueMinimapNumberColor;
+        c.redMinimapNumberColor = d.redMinimapNumberColor;
+        c.minimapPuckColor = d.minimapPuckColor;
+        c.minimapPlayerScale = d.minimapPlayerScale;
+        c.minimapPuckScale = d.minimapPuckScale;
+        c.minimapRefreshRate = d.minimapRefreshRate;
+        c.localPlayerMinimapIconEnabled = d.localPlayerMinimapIconEnabled;
+        c.blueLocalPlayerMinimapIconColor = d.blueLocalPlayerMinimapIconColor;
+        c.redLocalPlayerMinimapIconColor = d.redLocalPlayerMinimapIconColor;
+        SaveQoL();
+    }
+
     public static void CreateSection(VisualElement contentScrollViewContent)
     {
         Label description = UITools.CreateConfigurationLabel(
@@ -200,42 +222,42 @@ public static class UISection
         // Blue number text color
         var blueNumberColor = UITools.CreateColorConfigurationRow(
             "Blue Number Text Color",
-            ReskinProfileManager.currentProfile.blueMinimapNumberColor,
+            Cfg.blueMinimapNumberColor,
             false,
             newColor =>
             {
-                ReskinProfileManager.currentProfile.blueMinimapNumberColor = newColor;
+                Cfg.blueMinimapNumberColor = newColor;
                 ToasterReskinLoaderAPI.NotifyMinimapSettingsChanged();
             },
-            () => { ReskinProfileManager.SaveProfile(); }
+            () => { SaveQoL(); }
         );
         contentScrollViewContent.Add(blueNumberColor);
 
         // Red number text color
         var redNumberColor = UITools.CreateColorConfigurationRow(
             "Red Number Text Color",
-            ReskinProfileManager.currentProfile.redMinimapNumberColor,
+            Cfg.redMinimapNumberColor,
             false,
             newColor =>
             {
-                ReskinProfileManager.currentProfile.redMinimapNumberColor = newColor;
+                Cfg.redMinimapNumberColor = newColor;
                 ToasterReskinLoaderAPI.NotifyMinimapSettingsChanged();
             },
-            () => { ReskinProfileManager.SaveProfile(); }
+            () => { SaveQoL(); }
         );
         contentScrollViewContent.Add(redNumberColor);
 
         // Puck color
         var puckColor = UITools.CreateColorConfigurationRow(
             "Puck Color",
-            ReskinProfileManager.currentProfile.minimapPuckColor,
+            Cfg.minimapPuckColor,
             false,
             newColor =>
             {
-                ReskinProfileManager.currentProfile.minimapPuckColor = newColor;
+                Cfg.minimapPuckColor = newColor;
                 ToasterReskinLoaderAPI.NotifyMinimapSettingsChanged();
             },
-            () => { ReskinProfileManager.SaveProfile(); }
+            () => { SaveQoL(); }
         );
         contentScrollViewContent.Add(puckColor);
 
@@ -245,11 +267,11 @@ public static class UISection
         VisualElement localIconRow = UITools.CreateConfigurationRow();
         localIconRow.Add(UITools.CreateConfigurationLabel("Custom Local Player Icon Color"));
 
-        Toggle localIconToggle = UITools.CreateConfigurationCheckbox(ReskinProfileManager.currentProfile.localPlayerMinimapIconEnabled);
+        Toggle localIconToggle = UITools.CreateConfigurationCheckbox(Cfg.localPlayerMinimapIconEnabled);
         localIconToggle.RegisterCallback<ChangeEvent<bool>>(evt =>
         {
-            ReskinProfileManager.currentProfile.localPlayerMinimapIconEnabled = evt.newValue;
-            ReskinProfileManager.SaveProfile();
+            Cfg.localPlayerMinimapIconEnabled = evt.newValue;
+            SaveQoL();
             ToasterReskinLoaderAPI.NotifyMinimapSettingsChanged();
             TeamColorSwapper.RefreshAll();
             UITools.UpdateDependentControlsState(localIconDependentControls, evt.newValue);
@@ -259,61 +281,61 @@ public static class UISection
 
         var blueLocalIconColor = UITools.CreateColorConfigurationRow(
             "Blue Local Player Icon Color",
-            ReskinProfileManager.currentProfile.blueLocalPlayerMinimapIconColor,
+            Cfg.blueLocalPlayerMinimapIconColor,
             false,
             newColor =>
             {
-                ReskinProfileManager.currentProfile.blueLocalPlayerMinimapIconColor = newColor;
+                Cfg.blueLocalPlayerMinimapIconColor = newColor;
                 ToasterReskinLoaderAPI.NotifyMinimapSettingsChanged();
             },
-            () => { ReskinProfileManager.SaveProfile(); }
+            () => { SaveQoL(); }
         );
         contentScrollViewContent.Add(blueLocalIconColor);
         localIconDependentControls.Add(blueLocalIconColor);
 
         var redLocalIconColor = UITools.CreateColorConfigurationRow(
             "Red Local Player Icon Color",
-            ReskinProfileManager.currentProfile.redLocalPlayerMinimapIconColor,
+            Cfg.redLocalPlayerMinimapIconColor,
             false,
             newColor =>
             {
-                ReskinProfileManager.currentProfile.redLocalPlayerMinimapIconColor = newColor;
+                Cfg.redLocalPlayerMinimapIconColor = newColor;
                 ToasterReskinLoaderAPI.NotifyMinimapSettingsChanged();
             },
-            () => { ReskinProfileManager.SaveProfile(); }
+            () => { SaveQoL(); }
         );
         contentScrollViewContent.Add(redLocalIconColor);
         localIconDependentControls.Add(redLocalIconColor);
 
-        UITools.UpdateDependentControlsState(localIconDependentControls, ReskinProfileManager.currentProfile.localPlayerMinimapIconEnabled);
+        UITools.UpdateDependentControlsState(localIconDependentControls, Cfg.localPlayerMinimapIconEnabled);
 
         // Player icon scale
         CreateSliderRow(contentScrollViewContent, "Player Icon Scale", 0.5f, 3f,
-            () => ReskinProfileManager.currentProfile.minimapPlayerScale,
+            () => Cfg.minimapPlayerScale,
             val =>
             {
-                ReskinProfileManager.currentProfile.minimapPlayerScale = val;
-                ReskinProfileManager.SaveProfile();
+                Cfg.minimapPlayerScale = val;
+                SaveQoL();
                 ToasterReskinLoaderAPI.NotifyMinimapSettingsChanged();
             });
 
         // Puck icon scale
         CreateSliderRow(contentScrollViewContent, "Puck Icon Scale", 0.5f, 3f,
-            () => ReskinProfileManager.currentProfile.minimapPuckScale,
+            () => Cfg.minimapPuckScale,
             val =>
             {
-                ReskinProfileManager.currentProfile.minimapPuckScale = val;
-                ReskinProfileManager.SaveProfile();
+                Cfg.minimapPuckScale = val;
+                SaveQoL();
                 ToasterReskinLoaderAPI.NotifyMinimapSettingsChanged();
             });
 
         // Minimap refresh rate (game default 30, range 1-120)
         CreateSliderRow(contentScrollViewContent, "Minimap Refresh Rate", 1f, 120f,
-            () => ReskinProfileManager.currentProfile.minimapRefreshRate,
+            () => Cfg.minimapRefreshRate,
             val =>
             {
-                ReskinProfileManager.currentProfile.minimapRefreshRate = Mathf.RoundToInt(val);
-                ReskinProfileManager.SaveProfile();
+                Cfg.minimapRefreshRate = Mathf.RoundToInt(val);
+                SaveQoL();
                 MinimapSwapper.ApplyRefreshRate();
             });
 
@@ -335,7 +357,7 @@ public static class UISection
         UITools.AddHoverEffectsForButton(minimapResetButton);
         minimapResetButton.RegisterCallback<ClickEvent>(evt =>
         {
-            ReskinProfileManager.ResetMinimapToDefault();
+            ResetMinimapToDefault();
             ToasterReskinLoaderAPI.NotifyMinimapSettingsChanged();
 
             Label title = (Label)contentScrollViewContent.Children().First();

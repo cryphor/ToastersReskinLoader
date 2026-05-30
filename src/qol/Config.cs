@@ -6,6 +6,7 @@
 
 using System;
 using System.Collections.Generic;
+using UnityEngine;
 
 namespace ToasterReskinLoader.qol;
 
@@ -131,6 +132,17 @@ public class QoLConfig
     public bool  glossAffectSticks = true;
     public bool  glossAffectPlayers = true;
     public bool  glossAffectPucks = true;
+
+    // Minimap (HUD).
+    public Color blueMinimapNumberColor = Color.white;
+    public Color redMinimapNumberColor = Color.white;
+    public Color minimapPuckColor = new Color(0f, 0f, 0f, 1f);
+    public float minimapPlayerScale = 1f;
+    public float minimapPuckScale = 1f;
+    public int   minimapRefreshRate = 60;
+    public bool  localPlayerMinimapIconEnabled = false;
+    public Color blueLocalPlayerMinimapIconColor = new Color(0f, 1f, 0f, 1f);
+    public Color redLocalPlayerMinimapIconColor = new Color(0f, 1f, 0f, 1f);
 
     // One-time marker: display settings have been seeded from a pre-existing reskin profile.
     public bool displaySettingsMigrated = false;
