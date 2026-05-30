@@ -14,12 +14,34 @@ namespace ToasterReskinLoader.ui.sections;
 /// </summary>
 public static class PresetsSection
 {
-    // Order groups appear in within each team bucket / the global bucket.
-    private static readonly List<string> GroupOrder = new()
+    // Order categories appear in (within a role node, or the global bucket).
+    private static readonly List<string> CategoryOrder = new()
     {
-        "Skaters", "Goalies", "Sticks", "Tape", "Team Colors", "Minimap",
-        "Puck", "Arena", "Skybox", "Shadows", "Puck FX", "Gloss", "Chat",
+        "Team identity", "Jersey", "Helmet", "Goalie gear", "Name & number", "Stick & tape",
+        "Arena", "Puck", "Skybox", "Puck FX",
     };
+
+    // Maps a field to its editor-aligned category. Mirrors PlayersSection so the save tree
+    // reads the same as the Players editor.
+    private static string CategoryOf(PresetField f)
+    {
+        switch (f.Group)
+        {
+            case "Arena": return "Arena";
+            case "Puck": return "Puck";
+            case "Skybox": return "Skybox";
+            case "Puck FX": return "Puck FX";
+            case "Team Colors": return "Team identity";
+            case "Sticks":
+            case "Tape": return "Stick & tape";
+        }
+        string id = f.Id;
+        if (id.Contains("Torso") || id.Contains("Groin")) return "Jersey";
+        if (id.Contains("Mask") || id.Contains("Cage") || id.Contains("LegPad")) return "Goalie gear";
+        if (id.Contains("Helmet")) return "Helmet";
+        if (id.Contains("Lettering") || id.Contains("NumberOutline")) return "Name & number";
+        return f.Group;
+    }
 
     private static VisualElement _root;
 
@@ -300,7 +322,7 @@ public static class PresetsSection
                 _root.Add(b);
             }
 
-            foreach (var group in bucketFields.GroupBy(f => f.Group).OrderBy(g => GroupIndex(g.Key)))
+            foreach (var group in bucketFields.GroupBy(CategoryOf).OrderBy(g => CategoryIndex(g.Key)))
             {
                 var line = UITools.CreateConfigurationLabel(
                     $"• {group.Key}: {string.Join(", ", group.OrderBy(f => f.DisplayName).Select(f => f.DisplayName))}");
@@ -476,42 +498,84 @@ public static class PresetsSection
         if (fields.Count == 0) return;
 
         var bucketToggle = UITools.CreateConfigurationCheckbox(false);
-        var (header, body, childToggles) = MakeCollapsible(label, bucketToggle, 16, true);
+        var (header, body, _) = MakeCollapsible(label, bucketToggle, 16, true);
         _root.Add(header);
         _root.Add(body);
 
-        var groups = fields.GroupBy(f => f.Group)
-            .OrderBy(g => GroupIndex(g.Key));
+        var childToggles = new List<Toggle>();
 
-        foreach (var group in groups)
+        if (team == PresetTeam.None)
         {
-            var groupToggle = UITools.CreateConfigurationCheckbox(false);
-            var (gHeader, gBody, gChildToggles) = MakeCollapsible(group.Key, groupToggle, 14, false);
-            gHeader.style.marginLeft = 18;
-            gBody.style.marginLeft = 34;
-            body.Add(gHeader);
-            body.Add(gBody);
+            // Global: categories directly under the bucket (Arena / Puck / Skybox / Puck FX).
+            foreach (var cat in fields.GroupBy(CategoryOf).OrderBy(g => CategoryIndex(g.Key)))
+                childToggles.Add(BuildCategorySection(body, cat.Key, cat.ToList(), 18, toggles));
+        }
+        else
+        {
+            // Team: Team identity (team-level), then Skater and Goalie role nodes.
+            var identity = fields.Where(f => f.Role == PresetRole.None).ToList();
+            if (identity.Count > 0)
+                childToggles.Add(BuildCategorySection(body, "Team identity", identity, 18, toggles));
 
-            var fieldToggleList = new List<Toggle>();
-            foreach (var field in group.OrderBy(f => f.DisplayName))
-            {
-                var row = UITools.CreateRow();
-                row.style.marginTop = 2;
-                row.style.marginBottom = 2;
-                var t = UITools.CreateConfigurationCheckbox(false);
-                t.style.marginRight = 8;
-                row.Add(t);
-                row.Add(UITools.CreateConfigurationLabel(field.DisplayName));
-                gBody.Add(row);
-                toggles[field.Id] = t;
-                fieldToggleList.Add(t);
-            }
+            var skater = fields.Where(f => f.Role == PresetRole.Skater).ToList();
+            if (skater.Count > 0)
+                childToggles.Add(BuildRoleNode(body, "Skater", skater, 18, toggles));
 
-            WireParent(groupToggle, fieldToggleList);
-            childToggles.Add(groupToggle);
+            var goalie = fields.Where(f => f.Role == PresetRole.Goalie).ToList();
+            if (goalie.Count > 0)
+                childToggles.Add(BuildRoleNode(body, "Goalie", goalie, 18, toggles));
         }
 
         WireParent(bucketToggle, childToggles);
+    }
+
+    // A role node (Skater / Goalie): its own checkbox + a body of category subsections.
+    private static Toggle BuildRoleNode(VisualElement parentBody, string name, List<PresetField> fields,
+        int leftMargin, Dictionary<string, Toggle> toggles)
+    {
+        var nodeToggle = UITools.CreateConfigurationCheckbox(false);
+        var (header, body, _) = MakeCollapsible(name, nodeToggle, 14, false);
+        header.style.marginLeft = leftMargin;
+        body.style.marginLeft = leftMargin + 4;
+        parentBody.Add(header);
+        parentBody.Add(body);
+
+        var catToggles = new List<Toggle>();
+        foreach (var cat in fields.GroupBy(CategoryOf).OrderBy(g => CategoryIndex(g.Key)))
+            catToggles.Add(BuildCategorySection(body, cat.Key, cat.ToList(), leftMargin + 18, toggles));
+
+        WireParent(nodeToggle, catToggles);
+        return nodeToggle;
+    }
+
+    // A leaf category (Jersey / Helmet / …): its own checkbox + field rows. Returns the toggle.
+    private static Toggle BuildCategorySection(VisualElement parentBody, string name, List<PresetField> fields,
+        int leftMargin, Dictionary<string, Toggle> toggles)
+    {
+        var catToggle = UITools.CreateConfigurationCheckbox(false);
+        var (header, body, _) = MakeCollapsible(name, catToggle, 13, false);
+        header.style.marginLeft = leftMargin;
+        body.style.marginLeft = leftMargin + 16;
+        parentBody.Add(header);
+        parentBody.Add(body);
+
+        var leaves = new List<Toggle>();
+        foreach (var field in fields.OrderBy(f => f.DisplayName))
+        {
+            var row = UITools.CreateRow();
+            row.style.marginTop = 2;
+            row.style.marginBottom = 2;
+            var t = UITools.CreateConfigurationCheckbox(false);
+            t.style.marginRight = 8;
+            row.Add(t);
+            row.Add(UITools.CreateConfigurationLabel(field.DisplayName));
+            body.Add(row);
+            toggles[field.Id] = t;
+            leaves.Add(t);
+        }
+
+        WireParent(catToggle, leaves);
+        return catToggle;
     }
 
     // Header row with a selection checkbox + a click-to-expand label/chevron, plus the body
@@ -577,9 +641,9 @@ public static class PresetsSection
         }
     }
 
-    private static int GroupIndex(string group)
+    private static int CategoryIndex(string category)
     {
-        int i = GroupOrder.IndexOf(group);
+        int i = CategoryOrder.IndexOf(category);
         return i < 0 ? int.MaxValue : i;
     }
 
