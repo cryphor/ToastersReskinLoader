@@ -107,15 +107,16 @@ public static class PlayersSection
             foreach (var f in catFields) RenderField(f);
         }
 
-        // Stick + tape are team-wide — everyone on this team/role gets them.
-        _root.Add(SubHeading("Stick & tape", "Applies to the whole team."));
+        // Team stick — everyone on this team/role gets it.
+        _root.Add(SubHeading("Team stick", "Applies to the whole team."));
         if (teamStick != null) RenderField(teamStick, "Team stick");
+
+        // Personal — only the local player sees their own stick + tape. (Tape is local-only until
+        // the team/personal tape split lands — see docs/presets-backlog.md.)
+        _root.Add(SubHeading("Your stick (personal)", "Only you see this — your own stick skin and tape."));
+        if (personalStick != null) RenderField(personalStick, "Your stick skin");
         RenderTapeControl(_team, _role, "Blade");
         RenderTapeControl(_team, _role, "Shaft");
-
-        // Personal — only the local player sees their own stick skin.
-        _root.Add(SubHeading("Your stick (personal)", "Only you see this — your own stick skin."));
-        if (personalStick != null) RenderField(personalStick, "Your stick skin");
 
         Preview();
     }
@@ -162,6 +163,12 @@ public static class PlayersSection
             c => { if (blue) profile.blueTeamColor = c; else profile.redTeamColor = c; RefreshTeamColors(); },
             ReskinProfileManager.SaveProfile);
         _root.Add(colorRow);
+
+        // Gray out / disable the color picker unless the custom-color checkbox is on.
+        // (The enable toggle re-renders the section, so this reflects the current state.)
+        bool colorEnabled = blue ? profile.blueTeamColorEnabled : profile.redTeamColorEnabled;
+        colorRow.SetEnabled(colorEnabled);
+        colorRow.style.opacity = colorEnabled ? 1f : 0.5f;
     }
 
     private static void RefreshTeamColors()
