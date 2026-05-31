@@ -7,6 +7,7 @@ namespace ToasterReskinLoader.ui.sections;
 
 public static class PucksSection
 {
+    private static PopupField<ReskinRegistry.ReskinEntry> puckDropdown;
     public static void CreateSection(VisualElement contentScrollViewContent)
     {
         List<ReskinRegistry.ReskinEntry> allPuckReskins = ReskinRegistry.GetReskinEntriesByType("puck");
@@ -50,7 +51,7 @@ public static class PucksSection
         selectPuckLabel.style.marginRight = 8;
         puckSelectionRow.Add(selectPuckLabel);
 
-        PopupField<ReskinRegistry.ReskinEntry> puckDropdown = UITools.CreateConfigurationDropdownField();
+        puckDropdown = UITools.CreateConfigurationDropdownField();
         puckDropdown.choices = dropdownPuckReskins;
         puckDropdown.value = dropdownPuckReskins.Count > 0 ? dropdownPuckReskins[0] : defaultEntry;
         puckSelectionRow.Add(puckDropdown);
@@ -178,8 +179,11 @@ public static class PucksSection
             removeButton.RegisterCallback<ClickEvent>(evt =>
             {
                 ReskinProfileManager.RemovePuckFromRandomizer(puck);
-                // Note: RefreshPuckDropdown would need access to the dropdown from here
-                // For now, the UI will update on next section refresh
+                RefreshPuckDropdown(puckDropdown);
+                if (puckDropdown.choices.Count > 0)
+                {
+                    puckDropdown.value = puckDropdown.choices[0];
+                }
                 RefreshRandomizerList(contentScrollViewContent, puckReskins);
             });
             puckItemRow.Add(removeButton);
