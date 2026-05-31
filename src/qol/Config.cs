@@ -88,8 +88,10 @@ public class QoLConfig
     public bool enableServerSlotQueue = true;
     // Title-screen Quick Join button: refresh the server list and join
     // the best populated server matching the user's saved browser
-    // filters. Lightly biased toward TR-tagged servers.
-    public bool enableMainMenuQuickJoin = true;
+    // filters. Lightly biased toward TR-tagged servers. Default off for
+    // now — auto-connecting straight off the title screen is a big action
+    // to take unprompted.
+    public bool enableMainMenuQuickJoin = false;
     // Title-screen Server Browser button (off by default — vanilla
     // already exposes one inside the Play sub-menu, this is a shortcut
     // for users who'd rather skip it).
@@ -101,17 +103,22 @@ public class QoLConfig
     // In-game clock polish.
     //   * enableScoreboardMilliseconds → swap MM:SS for MM:SS.mmm on
     //     the clock, interpolated locally between server ticks.
-    //   * enableScoreboardClockColor → white→red color lerp over the
-    //     last 30s + alpha pulse over the last 5s of a period.
-    public bool enableScoreboardMilliseconds = true;
+    //     Default off — the rolling sub-second digits are distracting
+    //     for most players.
+    //   * enableScoreboardClockColor → color ramp over the final 30s:
+    //     amber→red lerp 30s→10s, solid red the last 10s, red flashing in
+    //     the final 5s. Only animates during the Warmup / Play phases (see
+    //     ScoreboardPolish).
+    public bool enableScoreboardMilliseconds = false;
     public bool enableScoreboardClockColor   = true;
     // Chat visual options, each independent so a user can mix-and-match.
     //   * enableChatNoFade → expired messages stay at full opacity
-    //     instead of fading to the .blurred USS state.
+    //     instead of fading to the .blurred USS state. Default off — the
+    //     vanilla fade keeps stale chatter from piling up on screen.
     //   * enableChatTransparentContainer → chat container background
     //     is forced to fully transparent (overrides vanilla's dark
     //     panel USS).
-    public bool enableChatNoFade               = true;
+    public bool enableChatNoFade               = false;
     public bool enableChatTransparentContainer = true;
     public bool enableEnhancedModMenu = true;
     public bool enableAutoConnectMatchmaking = false;

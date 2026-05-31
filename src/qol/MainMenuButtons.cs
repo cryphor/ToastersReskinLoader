@@ -28,11 +28,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using HarmonyLib;
+using ToasterReskinLoader.qol.serverbrowser;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -295,7 +295,7 @@ internal static class MainMenuButtons
             // text; the queue and quick-join are mutually exclusive in
             // practice (a slot-queue is already running for a target,
             // quick-join is for picking a fresh target).
-            MarshalToMain(() => SetOverlay("FINDING BEST SERVER", "scanning available servers"));
+            MarshalToMain(() => SetOverlay("FINDING BEST SERVER", "Scanning available servers"));
 
             // Kick the refresh wave on the main thread. UIServerBrowser
             // is a MonoBehaviour and Refresh() touches Unity APIs.
@@ -377,8 +377,10 @@ internal static class MainMenuButtons
             var browser = MonoBehaviourSingleton<UIManager>.Instance?.ServerBrowser;
             if (browser == null) return list;
 
-            var mapField = AccessTools.Field(typeof(UIServerBrowser), "endPointVisualElementMap");
-            var map = mapField?.GetValue(browser) as Dictionary<EndPoint, VisualElement>;
+            // Reuse ServerBrowserSort's map/preview accessors so the two
+            // copies don't drift if vanilla's field name or the userData
+            // shape changes in a future Puck build.
+            var map = ServerBrowserSort.GetMap(browser);
             if (map == null) return list;
 
             var cfg = QoLRunner.Instance?.Config ?? new QoLConfig();
@@ -389,10 +391,7 @@ internal static class MainMenuButtons
                 var rowRoot = kv.Value;
                 if (ep == null || rowRoot == null) continue;
 
-                var server = rowRoot.Q<VisualElement>("Server");
-                var ud = server?.userData as Dictionary<string, object>;
-                if (ud == null) continue;
-                if (!ud.TryGetValue("previewData", out var pd) || pd is not ServerPreviewData preview) continue;
+                var preview = ServerBrowserSort.GetPreviewFromRow(rowRoot);
                 if (preview == null) continue;
 
                 // Mirror vanilla FilterServer + user's saved filters.
@@ -486,35 +485,26 @@ internal static class MainMenuButtons
     // queue isn't already showing it. If the queue is active we just
     // log a notice and skip — concurrent panels make for confusing UI.
 
-    private static readonly Type UIMatchmakingType = AccessTools.TypeByName("UIMatchmaking");
-    private static readonly MethodInfo SetVisible    = UIMatchmakingType?.GetMethod("SetMatchingVisibility");
-    private static readonly MethodInfo SetPhaseText  = UIMatchmakingType?.GetMethod("SetMatchingPhaseText");
-    private static readonly MethodInfo SetConnectVis = UIMatchmakingType?.GetMethod("SetMatchingConnectButtonVisibility");
-    private static readonly MethodInfo SetCloseVis   = UIMatchmakingType?.GetMethod("SetMatchingCloseButtonVisibility");
-    private static readonly MethodInfo SetTimeVis    = UIMatchmakingType?.GetMethod("SetMatchingTimeVisibility");
-    private static readonly PropertyInfo IsVisibleProp = UIMatchmakingType?.GetProperty("IsVisible");
-
     private static void SetOverlay(string phase, string subtitle)
     {
         // If the slot queue owns the panel, defer to it. We don't try to
         // stack — the queue is the more important indicator (long-lived).
-        if (ToasterReskinLoader.qol.serverbrowser.ServerSlotQueue.IsActive)
+        if (ServerSlotQueue.IsActive)
         {
             Plugin.Log("[QoL] quick-join: slot queue active, suppressing overlay");
             return;
         }
-        var panel = GetPanel();
-        if (panel == null) return;
+        if (MatchmakingPanelOverlay.Panel == null) return;
         try
         {
-            IsVisibleProp?.SetValue(panel, true);
-            SetVisible?.Invoke(panel,    new object[] { true });
-            SetConnectVis?.Invoke(panel, new object[] { false });
+            MatchmakingPanelOverlay.SetIsVisible(true);
+            MatchmakingPanelOverlay.SetVisible(true);
+            MatchmakingPanelOverlay.SetConnectButton(false);
             // X button visible so the user can bail out of a stuck or
             // slow quick-join — close click is routed back here via
             // Event_OnMatchmakingMatchingClickClose → OnMatchmakingClose.
-            SetCloseVis?.Invoke(panel,   new object[] { true });
-            SetTimeVis?.Invoke(panel,    new object[] { false });
+            MatchmakingPanelOverlay.SetCloseButton(true);
+            MatchmakingPanelOverlay.SetTimeVisible(false);
             // Two-tier layout using UI Toolkit rich-text size tags —
             // small all-caps category on top, larger bold detail below.
             // Matches the slot-queue panel's hierarchy without needing
@@ -522,36 +512,24 @@ internal static class MainMenuButtons
             string rich =
                 $"<size=12><color=#cccccc>{phase}</color></size>\n" +
                 $"<size=22><b>{subtitle}</b></size>";
-            SetPhaseText?.Invoke(panel, new object[] { rich });
+            MatchmakingPanelOverlay.SetPhaseText(rich);
         }
         catch (Exception e) { Plugin.LogWarning("[QoL] quick-join SetOverlay failed: " + e.Message); }
     }
 
     private static void ClearOverlay()
     {
-        if (ToasterReskinLoader.qol.serverbrowser.ServerSlotQueue.IsActive) return;
-        var panel = GetPanel();
-        if (panel == null) return;
+        if (ServerSlotQueue.IsActive) return;
+        if (MatchmakingPanelOverlay.Panel == null) return;
         try
         {
-            SetVisible?.Invoke(panel,    new object[] { false });
-            SetPhaseText?.Invoke(panel,  new object[] { string.Empty });
-            SetConnectVis?.Invoke(panel, new object[] { false });
-            SetCloseVis?.Invoke(panel,   new object[] { false });
-            SetTimeVis?.Invoke(panel,    new object[] { false });
+            MatchmakingPanelOverlay.SetVisible(false);
+            MatchmakingPanelOverlay.SetPhaseText(string.Empty);
+            MatchmakingPanelOverlay.SetConnectButton(false);
+            MatchmakingPanelOverlay.SetCloseButton(false);
+            MatchmakingPanelOverlay.SetTimeVisible(false);
         }
         catch { }
-    }
-
-    private static object GetPanel()
-    {
-        try
-        {
-            var ui = MonoBehaviourSingleton<UIManager>.Instance;
-            return ui?.GetType().GetField("Matchmaking",
-                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(ui);
-        }
-        catch { return null; }
     }
 
     // ─────────────────────────── threading helpers ────────────────────────

@@ -8,28 +8,32 @@
 //     absolute player count.
 //   * Saved-password indicator: rows that match an entry in
 //     SavedServerPasswords have the vanilla "passwordProtected" USS class
-//     stripped (suppressing the 🔒 lock icon) and get a 🔓 label inserted
-//     immediately after NameLabel so it sits right next to the wrench
-//     (modded) icon, mirroring how the vanilla lock + wrench cluster.
+//     stripped (suppressing the default lock icon) and get a GREEN lock
+//     label inserted immediately after NameLabel so it sits right next to
+//     the wrench (modded) icon. Green padlock = "locked, but your saved
+//     password auto-fills"; the vanilla lock still means "locked, no saved
+//     password".
 //   * Favorites: ★/☆ button at the start of every row. Clicking adds /
 //     removes the ip:port from cfg.favoriteServers (with the friendly
 //     name cached so the QoL management UI can render it offline).
 //     Favorited rows always sort above non-favorites regardless of the
 //     active column.
 //   * Row hover tooltip: when the row has the modded wrench icon, the
-//     tooltip explains how many of the required mods the user already
-//     has installed (so a quick hover answers "can I join this?"). When
-//     the row is password-protected, the tooltip indicates whether we
-//     have a saved password for it. The 🔓 saved-password badge keeps
-//     its own more-specific tooltip, so hovering precisely on it still
-//     shows the badge text instead of the row text.
+//     tooltip shows a "Required Mods" title and lists each required mod
+//     with its install status (so a quick hover answers "can I join
+//     this?"). Password state is left out of the tooltip — the lock
+//     badge already conveys it. The green saved-password badge keeps its
+//     own more-specific tooltip, so hovering precisely on it still shows
+//     the badge text.
 //
-// Gated per-store behind cfg.enableServerFavorites (★ button + sort
-// favorites to top) and cfg.enableServerBlocks (right-click block +
-// hide blocked rows). Either flag being on activates the shared
-// browser-side scaffolding (sort tweaks, row context-menu). The vanilla
-// `ServerSortType` and `ServerSortDirection` enums are internal — we set
-// their fields via AccessTools and use the raw int values (Name=0,
+// The baseline sort/ratio tweaks (PLAYERS%-descending reset on open,
+// ratio-based PLAYERS% column) ride on cfg.enableServerBrowserSortTweaks,
+// which defaults ON — so the "populated servers float to the top" QoL
+// works out of the box. The favorites/blocks extras are gated separately:
+// cfg.enableServerFavorites (★ button + favorites-first tier) and
+// cfg.enableServerBlocks (right-click block + hide blocked rows). The
+// vanilla `ServerSortType` and `ServerSortDirection` enums are internal —
+// we set their fields via AccessTools and use the raw int values (Name=0,
 // Players=1, Ping=2; Ascending=0, Descending=1).
 
 using System;
@@ -62,20 +66,34 @@ internal static class ServerBrowserSort
     // pictograph that ignores style.color tinting.
     private const string GlyphStarFilled = "★︎";
     private const string GlyphStarEmpty  = "☆︎";
+    // Saved-password indicator. A green padlock (closed) reads as
+    // "locked, but you're cleared" — clearer than an open-padlock emoji.
+    // The trailing U+FE0E (VS-15) forces text presentation so the OS-font
+    // fallback uses Segoe UI Symbol's flat glyph, which respects our green
+    // style.color tint (the color-emoji presentation would ignore it).
+    private const string GlyphLockSaved = "🔒︎";
 
     private static bool FavoritesEnabled =>
         QoLRunner.Instance?.Config?.enableServerFavorites ?? false;
     private static bool BlocksEnabled =>
         QoLRunner.Instance?.Config?.enableServerBlocks ?? false;
-    // The saved-password 🔓 badge rides on its own independent toggle —
+    // The saved-password lock badge rides on its own independent toggle —
     // it must be able to render even when favorites and blocks are both
     // off (which is the default config, where savedServerPasswords is on).
     private static bool SavedPasswordsEnabled =>
         QoLRunner.Instance?.Config?.enableSavedServerPasswords ?? false;
-    // Any browser-side scaffolding (sort patches, row context-menu hook,
-    // row tooltip) activates when EITHER favorites or blocks is on. The
-    // finer-grained gates inside (star button visibility, block-row
-    // hiding) check FavoritesEnabled / BlocksEnabled directly.
+    // The baseline sort/ratio tweaks — reset to PLAYERS%-descending on
+    // open, the ratio-based PLAYERS% column, and the favorites-first sort
+    // tier — ride on their OWN default-on flag, independent of the
+    // favorites/blocks stores layered on top. This is the out-of-the-box
+    // QoL the file header describes; gating it on favorites/blocks (which
+    // default off) silently disabled it.
+    private static bool SortTweaksEnabled =>
+        QoLRunner.Instance?.Config?.enableServerBrowserSortTweaks ?? true;
+    // The favorites/blocks scaffolding: ★ button, right-click context
+    // menu, block-row hiding. The finer-grained gates inside (star button
+    // visibility, block-row hiding) check FavoritesEnabled / BlocksEnabled
+    // directly.
     private static bool Enabled => FavoritesEnabled || BlocksEnabled;
 
     // Mod-title cache so the row tooltip can list required mods by
@@ -143,13 +161,68 @@ internal static class ServerBrowserSort
         return null;
     }
 
+    // ──────────────────── favorites / blocks shared store ─────────────────
+    //
+    // Favorites and blocks are mechanically identical key→cached-name
+    // dictionaries on the config. ServerKeyStore wraps one (resolved live
+    // each call so it tracks config reloads) with the shared
+    // contains/snapshot/name/remove/clear ops; the public APIs below
+    // delegate so the two can't drift. Mutations persist via
+    // QoLRunner.SaveAndRefresh.
+    private sealed class ServerKeyStore
+    {
+        private readonly Func<Dictionary<string, string>> _resolve;
+        internal ServerKeyStore(Func<Dictionary<string, string>> resolve) { _resolve = resolve; }
+
+        // The live backing dictionary (or null when no config yet). Exposed
+        // for callers with extra cross-store logic (ToggleBlock clears the
+        // favorite at the same time).
+        internal Dictionary<string, string> Raw => _resolve();
+
+        internal bool Contains(string key)
+        {
+            var s = _resolve();
+            return s != null && !string.IsNullOrEmpty(key) && s.ContainsKey(key);
+        }
+
+        internal List<string> SnapshotKeys()
+        {
+            var s = _resolve();
+            if (s == null) return new List<string>();
+            var list = new List<string>(s.Keys);
+            list.Sort(StringComparer.Ordinal);
+            return list;
+        }
+
+        internal string GetCachedName(string key)
+        {
+            var s = _resolve();
+            return (s != null && !string.IsNullOrEmpty(key) && s.TryGetValue(key, out var n)) ? n : null;
+        }
+
+        internal bool Remove(string key)
+        {
+            var s = _resolve();
+            return s != null && !string.IsNullOrEmpty(key) && s.Remove(key);
+        }
+
+        internal bool Clear()
+        {
+            var s = _resolve();
+            if (s == null || s.Count == 0) return false;
+            s.Clear();
+            return true;
+        }
+    }
+
+    private static readonly ServerKeyStore _favorites =
+        new ServerKeyStore(() => QoLRunner.Instance?.Config?.favoriteServers);
+    private static readonly ServerKeyStore _blocked =
+        new ServerKeyStore(() => QoLRunner.Instance?.Config?.blockedServers);
+
     // ──────────────────────────── favorites API ───────────────────────────
 
-    public static bool IsFavorite(string key)
-    {
-        var s = QoLRunner.Instance?.Config?.favoriteServers;
-        return s != null && !string.IsNullOrEmpty(key) && s.ContainsKey(key);
-    }
+    public static bool IsFavorite(string key) => _favorites.Contains(key);
 
     // Toggle a key in/out of favorites and persist. The friendly name is
     // cached on add so the QoL management UI can show it even when the
@@ -157,54 +230,30 @@ internal static class ServerBrowserSort
     public static void ToggleFavorite(string key, string cachedName)
     {
         if (string.IsNullOrEmpty(key)) return;
-        var runner = QoLRunner.Instance;
-        var s = runner?.Config?.favoriteServers;
+        var s = _favorites.Raw;
         if (s == null) return;
         if (s.ContainsKey(key)) s.Remove(key);
         else                    s[key] = cachedName ?? "";
-        runner.SaveAndRefresh();
+        QoLRunner.Instance?.SaveAndRefresh();
     }
 
-    public static List<string> SnapshotFavoriteKeys()
-    {
-        var s = QoLRunner.Instance?.Config?.favoriteServers;
-        if (s == null) return new List<string>();
-        var list = new List<string>(s.Keys);
-        list.Sort(StringComparer.Ordinal);
-        return list;
-    }
+    public static List<string> SnapshotFavoriteKeys() => _favorites.SnapshotKeys();
 
-    public static string GetFavoriteCachedName(string key)
-    {
-        var s = QoLRunner.Instance?.Config?.favoriteServers;
-        return (s != null && !string.IsNullOrEmpty(key) && s.TryGetValue(key, out var n)) ? n : null;
-    }
+    public static string GetFavoriteCachedName(string key) => _favorites.GetCachedName(key);
 
     public static void RemoveFavorite(string key)
     {
-        if (string.IsNullOrEmpty(key)) return;
-        var runner = QoLRunner.Instance;
-        var s = runner?.Config?.favoriteServers;
-        if (s == null) return;
-        if (s.Remove(key)) runner.SaveAndRefresh();
+        if (_favorites.Remove(key)) QoLRunner.Instance?.SaveAndRefresh();
     }
 
     public static void RemoveAllFavorites()
     {
-        var runner = QoLRunner.Instance;
-        var s = runner?.Config?.favoriteServers;
-        if (s == null || s.Count == 0) return;
-        s.Clear();
-        runner.SaveAndRefresh();
+        if (_favorites.Clear()) QoLRunner.Instance?.SaveAndRefresh();
     }
 
     // ──────────────────────────── blocking API ────────────────────────────
 
-    public static bool IsBlocked(string key)
-    {
-        var s = QoLRunner.Instance?.Config?.blockedServers;
-        return s != null && !string.IsNullOrEmpty(key) && s.ContainsKey(key);
-    }
+    public static bool IsBlocked(string key) => _blocked.Contains(key);
 
     // Toggle a key in/out of the block list. Blocking removes the key
     // from favorites at the same time — keeping both states would be
@@ -212,8 +261,7 @@ internal static class ServerBrowserSort
     public static void ToggleBlock(string key, string cachedName)
     {
         if (string.IsNullOrEmpty(key)) return;
-        var runner = QoLRunner.Instance;
-        var b = runner?.Config?.blockedServers;
+        var b = _blocked.Raw;
         if (b == null) return;
         if (b.ContainsKey(key))
         {
@@ -222,71 +270,49 @@ internal static class ServerBrowserSort
         else
         {
             b[key] = cachedName ?? "";
-            runner.Config.favoriteServers?.Remove(key);
+            _favorites.Raw?.Remove(key);
         }
-        runner.SaveAndRefresh();
+        QoLRunner.Instance?.SaveAndRefresh();
     }
 
-    public static List<string> SnapshotBlockedKeys()
-    {
-        var s = QoLRunner.Instance?.Config?.blockedServers;
-        if (s == null) return new List<string>();
-        var list = new List<string>(s.Keys);
-        list.Sort(StringComparer.Ordinal);
-        return list;
-    }
+    public static List<string> SnapshotBlockedKeys() => _blocked.SnapshotKeys();
 
-    public static string GetBlockedCachedName(string key)
-    {
-        var s = QoLRunner.Instance?.Config?.blockedServers;
-        return (s != null && !string.IsNullOrEmpty(key) && s.TryGetValue(key, out var n)) ? n : null;
-    }
+    public static string GetBlockedCachedName(string key) => _blocked.GetCachedName(key);
 
     public static void RemoveBlock(string key)
     {
-        if (string.IsNullOrEmpty(key)) return;
-        var runner = QoLRunner.Instance;
-        var s = runner?.Config?.blockedServers;
-        if (s == null) return;
-        if (s.Remove(key)) runner.SaveAndRefresh();
+        if (_blocked.Remove(key)) QoLRunner.Instance?.SaveAndRefresh();
     }
 
     public static void RemoveAllBlocks()
     {
-        var runner = QoLRunner.Instance;
-        var s = runner?.Config?.blockedServers;
-        if (s == null || s.Count == 0) return;
-        s.Clear();
-        runner.SaveAndRefresh();
+        if (_blocked.Clear()) QoLRunner.Instance?.SaveAndRefresh();
     }
 
     // ─────────────────────────── reflection helpers ───────────────────────
 
-    private static Dictionary<EndPoint, VisualElement> GetMap(UIServerBrowser ui)
+    internal static Dictionary<EndPoint, VisualElement> GetMap(UIServerBrowser ui)
     {
         var f = AccessTools.Field(typeof(UIServerBrowser), "endPointVisualElementMap");
         return f?.GetValue(ui) as Dictionary<EndPoint, VisualElement>;
     }
 
-    private static ServerPreviewData GetPreview(UIServerBrowser ui, EndPoint ep)
+    internal static ServerPreviewData GetPreview(UIServerBrowser ui, EndPoint ep)
     {
         var map = GetMap(ui);
         if (map == null || ep == null || !map.TryGetValue(ep, out var rowElem)) return null;
+        return GetPreviewFromRow(rowElem);
+    }
+
+    // Pull the ServerPreviewData straight off a row element (the value
+    // side of endPointVisualElementMap), skipping the endpoint→row map
+    // lookup. Used by the sort precompute, which already has the row.
+    internal static ServerPreviewData GetPreviewFromRow(VisualElement rowElem)
+    {
         var server = rowElem?.Q<VisualElement>("Server");
         var ud = server?.userData as Dictionary<string, object>;
         if (ud == null) return null;
         return ud.TryGetValue("previewData", out var pd) ? pd as ServerPreviewData : null;
-    }
-
-    private static EndPoint GetEndPointFromRow(UIServerBrowser ui, VisualElement row)
-    {
-        var map = GetMap(ui);
-        if (map == null) return null;
-        foreach (var kv in map)
-        {
-            if (kv.Value == row) return kv.Key;
-        }
-        return null;
     }
 
     private static int GetSortType(UIServerBrowser ui)
@@ -400,16 +426,23 @@ internal static class ServerBrowserSort
     {
         private static void Postfix(UIServerBrowser __instance, bool __result)
         {
-            if (!Enabled) return;
+            if (!SortTweaksEnabled && !Enabled && !SavedPasswordsEnabled) return;
             if (__instance == null) return;
             try
             {
-                var tField = AccessTools.Field(typeof(UIServerBrowser), "sortType");
-                var dField = AccessTools.Field(typeof(UIServerBrowser), "sortDirection");
-                tField?.SetValue(__instance, Enum.ToObject(tField.FieldType, SortType_Players));
-                dField?.SetValue(__instance, Enum.ToObject(dField.FieldType, SortDir_Descending));
+                // Reset to PLAYERS%-descending on open only when the sort
+                // tweaks are enabled — the badge/filter passes below still
+                // run for favorites/blocks/saved-passwords even when they're
+                // not.
+                if (SortTweaksEnabled)
+                {
+                    var tField = AccessTools.Field(typeof(UIServerBrowser), "sortType");
+                    var dField = AccessTools.Field(typeof(UIServerBrowser), "sortDirection");
+                    tField?.SetValue(__instance, Enum.ToObject(tField.FieldType, SortType_Players));
+                    dField?.SetValue(__instance, Enum.ToObject(dField.FieldType, SortDir_Descending));
 
-                AccessTools.Method(typeof(UIServerBrowser), "StyleSortButtons")?.Invoke(__instance, null);
+                    AccessTools.Method(typeof(UIServerBrowser), "StyleSortButtons")?.Invoke(__instance, null);
+                }
 
                 // Re-style every server row so badges show up retroactively
                 // when the feature was enabled while the browser already
@@ -456,12 +489,30 @@ internal static class ServerBrowserSort
     // active column. The PLAYERS column uses our capped ratio (see
     // RatioGameplayCap); NAME / PING replicate vanilla's comparator so
     // the visible order matches the column the user clicked on.
+    // Per-row sort key, precomputed once per SortServers call so the
+    // comparator is a pure dictionary lookup instead of — per comparison —
+    // two linear scans of the endpoint map plus a UI subtree query. Struct
+    // so a missing-row lookup yields harmless zeroed defaults.
+    private struct RowSortKey
+    {
+        public bool   IsFav;
+        public float  Ratio;
+        public int    Ping;
+        public string Name;
+    }
+
+    // Fallback for a serverList child with no endpoint-map entry (shouldn't
+    // happen, but keeps a phantom row sorting to the bottom — ratio -1,
+    // max ping, empty name — exactly as the old per-row lookup did).
+    private static readonly RowSortKey MissingRow =
+        new RowSortKey { IsFav = false, Ratio = -1f, Ping = int.MaxValue, Name = "" };
+
     [HarmonyPatch(typeof(UIServerBrowser), "SortServers")]
     private static class SortServers_FavoritesAndRatio_Postfix
     {
         private static void Postfix(UIServerBrowser __instance)
         {
-            if (!Enabled) return;
+            if (!SortTweaksEnabled) return;
             try
             {
                 var serverList = AccessTools.Field(typeof(UIServerBrowser), "serverList")?.GetValue(__instance) as VisualElement;
@@ -470,39 +521,54 @@ internal static class ServerBrowserSort
                 int sortDir  = GetSortDirection(__instance);
                 int dirMul   = sortDir == SortDir_Ascending ? 1 : -1;
 
+                // One pass over the endpoint map builds row → sort-key, so
+                // the comparator below is O(1) per comparison. Previously
+                // each comparison re-scanned the whole map twice
+                // (GetEndPointFromRow) and ran a Q<VisualElement>("Server")
+                // subtree query — O(n² log n) per sort on a few-hundred-row
+                // list, and the sort fires on every open + favorite toggle.
+                var map = GetMap(__instance);
+                bool favoritesOn = FavoritesEnabled;
+                var keys = new Dictionary<VisualElement, RowSortKey>(map?.Count ?? 0);
+                if (map != null)
+                {
+                    foreach (var kv in map)
+                    {
+                        var rowElem = kv.Value;
+                        if (rowElem == null) continue;
+                        var pd = GetPreviewFromRow(rowElem);
+                        keys[rowElem] = new RowSortKey
+                        {
+                            IsFav = favoritesOn && IsFavorite(MakeKey(kv.Key)),
+                            Ratio = ComputeRatio(pd),
+                            Ping  = pd?.ping ?? int.MaxValue,
+                            Name  = pd?.name ?? (kv.Key?.ToString() ?? ""),
+                        };
+                    }
+                }
+
                 serverList.hierarchy.Sort(delegate(VisualElement a, VisualElement b)
                 {
-                    EndPoint epA = GetEndPointFromRow(__instance, a);
-                    EndPoint epB = GetEndPointFromRow(__instance, b);
-                    string keyA = MakeKey(epA);
-                    string keyB = MakeKey(epB);
+                    var ka = keys.TryGetValue(a, out var va) ? va : MissingRow;
+                    var kb = keys.TryGetValue(b, out var vb) ? vb : MissingRow;
 
                     // Tier 1: favorites first regardless of column.
-                    bool favA = IsFavorite(keyA);
-                    bool favB = IsFavorite(keyB);
-                    if (favA != favB) return favA ? -1 : 1;
-
-                    var pdA = GetPreview(__instance, epA);
-                    var pdB = GetPreview(__instance, epB);
-                    string nA = pdA?.name ?? (epA?.ToString() ?? "");
-                    string nB = pdB?.name ?? (epB?.ToString() ?? "");
+                    if (ka.IsFav != kb.IsFav) return ka.IsFav ? -1 : 1;
 
                     int cmp;
                     switch (sortType)
                     {
                         case SortType_Players:
-                            cmp = ComputeRatio(pdA).CompareTo(ComputeRatio(pdB)) * dirMul;
+                            cmp = ka.Ratio.CompareTo(kb.Ratio) * dirMul;
                             if (cmp != 0) return cmp;
-                            return string.Compare(nA, nB, StringComparison.Ordinal);
+                            return string.Compare(ka.Name, kb.Name, StringComparison.Ordinal);
                         case SortType_Ping:
-                            int pingA = pdA?.ping ?? int.MaxValue;
-                            int pingB = pdB?.ping ?? int.MaxValue;
-                            cmp = pingA.CompareTo(pingB) * dirMul;
+                            cmp = ka.Ping.CompareTo(kb.Ping) * dirMul;
                             if (cmp != 0) return cmp;
-                            return string.Compare(nA, nB, StringComparison.Ordinal);
+                            return string.Compare(ka.Name, kb.Name, StringComparison.Ordinal);
                         case SortType_Name:
                         default:
-                            return string.Compare(nA, nB, StringComparison.Ordinal) * dirMul;
+                            return string.Compare(ka.Name, kb.Name, StringComparison.Ordinal) * dirMul;
                     }
                 });
             }
@@ -531,7 +597,7 @@ internal static class ServerBrowserSort
     {
         private static void Postfix(UIServerBrowser __instance, EndPoint endPoint)
         {
-            if (!Enabled || endPoint == null) return;
+            if (!BlocksEnabled || endPoint == null) return;
             try
             {
                 string key = MakeKey(endPoint);
@@ -554,7 +620,7 @@ internal static class ServerBrowserSort
     {
         private static void Postfix(UIServerBrowser __instance)
         {
-            if (!Enabled) return;
+            if (!SortTweaksEnabled) return;
             try
             {
                 var playersBtn = AccessTools.Field(typeof(UIServerBrowser), "playersButton")?.GetValue(__instance) as Button;
@@ -624,13 +690,14 @@ internal static class ServerBrowserSort
                         {
                             string cachedName = GetPreview(__instance, endPoint)?.name ?? "";
                             ToggleFavorite(key, cachedName);
-                            // Force a row restyle on the next frame so
-                            // the now-unfavorited star vanishes cleanly
-                            // (handled by this same postfix). Mutating
-                            // hierarchy in our own click handler would
-                            // race the click pipeline.
+                            // Force a row restyle on the next frame so the
+                            // now-unfavorited star vanishes cleanly (StyleServer
+                            // adds/removes the ★), then re-sort. Mutating the
+                            // hierarchy in our own click handler would race the
+                            // click pipeline, hence the deferred execute.
                             serverRow.schedule.Execute(() =>
                             {
+                                AccessTools.Method(typeof(UIServerBrowser), "StyleServer")?.Invoke(__instance, new object[] { endPoint });
                                 AccessTools.Method(typeof(UIServerBrowser), "SortServers")?.Invoke(__instance, null);
                             }).ExecuteLater(0);
                         })
@@ -719,12 +786,12 @@ internal static class ServerBrowserSort
 
                     if (unlock == null)
                     {
-                        unlock = new Label("🔓")
+                        unlock = new Label(GlyphLockSaved)
                         {
                             name = UnlockBadgeName,
                         };
                         unlock.style.marginRight = 4;
-                        unlock.style.color = new Color(0.6f, 1f, 0.6f);
+                        unlock.style.color = new Color(0.4f, 0.9f, 0.4f);
                         unlock.style.unityFontStyleAndWeight = FontStyle.Bold;
                         unlock.tooltip = "Saved password — auto-fills on join.";
                     }
@@ -759,7 +826,7 @@ internal static class ServerBrowserSort
                 // to absorb the hover event before the tooltip system
                 // resolves it), so we drive our own floating label via
                 // MouseEnter/MouseLeave instead.
-                AttachHoverTooltip(serverRow, () => ComputeRowTooltip(GetPreview(__instance, endPoint), key));
+                AttachHoverTooltip(serverRow, () => ComputeRowTooltip(GetPreview(__instance, endPoint)));
             }
             catch (Exception e) { Debug.LogWarning("[QoL] sort-tweaks StyleServer postfix failed: " + e.Message); }
         }
@@ -793,7 +860,11 @@ internal static class ServerBrowserSort
         // as the cursor crosses the icon band, even within one hover.
         row.RegisterCallback<MouseMoveEvent>(evt =>
         {
-            if (!Enabled) { HideHoverTooltip(); return; }
+            // Show whenever the row scaffolding is active — same condition
+            // StyleServer used to attach this handler. Gating on Enabled
+            // alone hid the "Required Mods" tooltip in the default config
+            // (saved passwords on, favorites/blocks off).
+            if (!Enabled && !SavedPasswordsEnabled) { HideHoverTooltip(); return; }
             try
             {
                 if (!IsMouseInIconStrip(row, evt.mousePosition))
@@ -892,12 +963,13 @@ internal static class ServerBrowserSort
     }
 
     // Builds the hover tooltip for a server row from its preview data.
-    //   Modded → header + one line per required mod showing status
-    //            (✓ enabled / ⚠ not enabled / ✗ missing) and the
-    //            workshop title (resolved lazily, see GetModTitle).
-    //   Locked → "🔒 Password required" / "🔓 Saved password — auto-fills".
-    // Returns null when neither applies (vanilla rows get no tooltip).
-    private static string ComputeRowTooltip(ServerPreviewData pd, string ipPort)
+    // Modded rows get a "Required Mods" title plus one line per required
+    // mod showing status (✓ enabled / ⚠ not enabled / ✗ missing) and the
+    // workshop title (resolved lazily, see GetModTitle). Password state is
+    // intentionally left out — the green lock badge already conveys
+    // "saved password", and the vanilla lock conveys "locked". Returns
+    // null for plain unmodded rows (they get no tooltip).
+    private static string ComputeRowTooltip(ServerPreviewData pd)
     {
         if (pd == null) return null;
         var lines = new List<string>();
@@ -906,19 +978,14 @@ internal static class ServerBrowserSort
         if (required.Length > 0)
             BuildModListLines(required, lines);
 
-        if (pd.isPasswordProtected)
-        {
-            if (lines.Count > 0) lines.Add(string.Empty); // spacer between sections
-            lines.Add(HasSavedPasswordFor(ipPort)
-                ? "🔓 Saved password — auto-fills on join"
-                : "🔒 Password required to join");
-        }
-
         return lines.Count > 0 ? string.Join("\n", lines) : null;
     }
 
     private static void BuildModListLines(string[] requiredIds, List<string> outLines)
     {
+        // Bold title instead of the old 🛠 wrench summary line.
+        outLines.Add("<b>Required Mods</b>");
+
         HashSet<string> enabled, ready;
         try
         {
@@ -931,18 +998,10 @@ internal static class ServerBrowserSort
         }
         catch
         {
-            outLines.Add($"🛠 {requiredIds.Length} required mod{(requiredIds.Length == 1 ? "" : "s")}");
+            // Mod manager not queryable — fall back to a bare count line.
+            outLines.Add($"  {requiredIds.Length} required mod{(requiredIds.Length == 1 ? "" : "s")}");
             return;
         }
-
-        int missing = 0;
-        foreach (var id in requiredIds)
-            if (!enabled.Contains(id)) missing++;
-
-        string plural = requiredIds.Length == 1 ? "" : "s";
-        outLines.Add(missing == 0
-            ? $"🛠 All {requiredIds.Length} required mod{plural} installed"
-            : $"🛠 {missing} of {requiredIds.Length} required mod{plural} not ready");
 
         // Detail lines: one per mod, with status marker + resolved
         // title (id when title isn't cached yet — the next hover will
@@ -959,12 +1018,6 @@ internal static class ServerBrowserSort
             string display = string.IsNullOrEmpty(title) ? id : title;
             outLines.Add($"  {marker} {display}{suffix}");
         }
-    }
-
-    private static void UpdateStarText(Button star, string key)
-    {
-        if (star == null) return;
-        star.text = IsFavorite(key) ? GlyphStarFilled : GlyphStarEmpty;
     }
 
     // ─────────────────────────── context menu ─────────────────────────────
@@ -1043,7 +1096,13 @@ internal static class ServerBrowserSort
         AddContextMenuItem(menu, fav ? GlyphStarFilled + " Remove from favorites" : GlyphStarEmpty + " Add to favorites", () =>
         {
             ToggleFavorite(key, pd?.name ?? "");
-            UpdateStarText(row.Q<Button>(FavStarName), key);
+            // Re-run StyleServer so the ★ is added/removed immediately —
+            // UpdateStarText only retints an EXISTING star, so a freshly
+            // favorited row (which has none yet) would otherwise show no
+            // star until the next full restyle ("star doesn't show half
+            // the time"). StyleServer is the single source of truth for
+            // the badge's presence.
+            AccessTools.Method(typeof(UIServerBrowser), "StyleServer")?.Invoke(browser, new object[] { endPoint });
             AccessTools.Method(typeof(UIServerBrowser), "SortServers")?.Invoke(browser, null);
             CloseContextMenu();
         });
@@ -1052,10 +1111,11 @@ internal static class ServerBrowserSort
         AddContextMenuItem(menu, blocked ? "Unblock server" : "Block server", () =>
         {
             ToggleBlock(key, pd?.name ?? "");
-            // Re-filter so the row hides immediately on block / reappears
-            // on unblock without needing a manual refresh.
+            // Blocking also clears the favorite (ToggleBlock does that), so
+            // restyle the row to drop any stale ★ before re-filtering hides
+            // (block) or re-shows (unblock) it.
+            AccessTools.Method(typeof(UIServerBrowser), "StyleServer")?.Invoke(browser, new object[] { endPoint });
             AccessTools.Method(typeof(UIServerBrowser), "FilterServers")?.Invoke(browser, null);
-            UpdateStarText(row.Q<Button>(FavStarName), key);
             CloseContextMenu();
         });
 

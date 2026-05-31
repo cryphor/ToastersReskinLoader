@@ -170,7 +170,7 @@ public static class PlayerQoLSection
         var blockedList   = new VisualElement(); blockedList.style.marginTop = 4;
         var trustedList   = new VisualElement(); trustedList.style.marginTop = 4;
 
-         Separator(contentScrollViewContent);
+        Separator(contentScrollViewContent);
 
         CompactStoreRow(contentScrollViewContent,
             "Saved Passwords",
@@ -189,7 +189,7 @@ public static class PlayerQoLSection
             passwordsList,
             () => RebuildSavedPasswordsList(passwordsList));
 
-             Separator(contentScrollViewContent);
+        Separator(contentScrollViewContent);
 
         CompactStoreRow(contentScrollViewContent,
             "Favorites",
@@ -205,7 +205,7 @@ public static class PlayerQoLSection
             favoritesList,
             () => RebuildFavoritesList(favoritesList));
 
-             Separator(contentScrollViewContent);
+        Separator(contentScrollViewContent);
 
         CompactStoreRow(contentScrollViewContent,
             "Blocked",
@@ -221,7 +221,7 @@ public static class PlayerQoLSection
             blockedList,
             () => RebuildBlockedList(blockedList));
 
-             Separator(contentScrollViewContent);
+        Separator(contentScrollViewContent);
 
         CompactStoreRow(contentScrollViewContent,
             "Trusted Mod Lists",
@@ -415,23 +415,27 @@ public static class PlayerQoLSection
         row.style.marginTop = 10;
         row.style.marginBottom = 2;
 
-        // Geometric Shapes block (U+25BC/B6) — same family as vanilla's
-        // sort-direction arrows in UIServerBrowser, so we know the
-        // game's font has them. The "small triangle" variants (▸/▾)
-        // are not in NotInter and render as missing-glyph boxes.
-        var titleLbl = new Label($"<b>{title}</b>");
-        titleLbl.style.fontSize = 15;
-        titleLbl.style.color = Color.white;
-        row.Add(titleLbl);
-
-        // flexGrow=1 pushes the count + toggle to the far right edge.
+        // Expand chevron on the LEFT, before the title — consistent with
+        // the accordion arrows used elsewhere in the menu. Geometric Shapes
+        // block (U+25B6/BC) — same family as vanilla's sort-direction arrows
+        // in UIServerBrowser, so we know the game's font has them. The "small
+        // triangle" variants (▸/▾) are not in NotInter and render as
+        // missing-glyph boxes.
         var chevron = new Label("▶");
         chevron.style.fontSize = 12;
         chevron.style.color = new Color(0.7f, 0.7f, 0.7f);
-        chevron.style.marginLeft = 8;
-        chevron.style.flexGrow = 1;
+        chevron.style.width = 14;
+        chevron.style.marginRight = 6;
+        chevron.style.unityTextAlign = TextAnchor.MiddleCenter;
         chevron.style.unityFontStyleAndWeight = FontStyle.Bold;
         row.Add(chevron);
+
+        // flexGrow=1 on the title pushes the count + toggle to the far right edge.
+        var titleLbl = new Label($"<b>{title}</b>");
+        titleLbl.style.fontSize = 15;
+        titleLbl.style.color = Color.white;
+        titleLbl.style.flexGrow = 1;
+        row.Add(titleLbl);
 
         int count = getCount();
         var countLbl = new Label($"({count})");
@@ -489,95 +493,36 @@ public static class PlayerQoLSection
         parent.Add(sep);
     }
 
-    private static void RebuildSavedPasswordsList(VisualElement container)
+    // Shared shape for the four server-browser-side "stores" rendered as
+    // an inline managed list (Saved Passwords / Favorites / Blocked /
+    // Trusted Mod Lists). They differ only in key source, label text,
+    // button labels, and the remove/clear actions — captured here so a
+    // single RebuildStoreList renders all four.
+    private sealed class StoreListSpec
     {
-        if (container == null) return;
-        container.Clear();
-
-        var runner = QoLRunner.Instance;
-        var cfg = runner?.Config;
-        if (cfg == null) return;
-        if (!cfg.enableSavedServerPasswords) return;
-
-        var keys = SavedServerPasswords.SnapshotKeys();
-        if (keys.Count == 0)
-        {
-            var empty = UITools.CreateConfigurationLabel("No saved passwords yet.");
-            empty.style.color = new Color(0.65f, 0.65f, 0.65f);
-            empty.style.marginTop = 4;
-            empty.style.marginBottom = 4;
-            container.Add(empty);
-            return;
-        }
-
-        foreach (var key in keys)
-        {
-            var row = UITools.CreateConfigurationRow();
-            row.style.alignItems = Align.Center;
-
-            // Friendly name when the server browser has pinged this
-            // ip:port at least once this session — otherwise fall back
-            // to bare ip:port.
-            string serverName = SavedServerPasswords.GetCachedServerName(key);
-
-            var labelStack = new VisualElement();
-            labelStack.style.flexGrow = 1;
-            labelStack.style.flexDirection = FlexDirection.Column;
-
-            var primary = UITools.CreateConfigurationLabel(
-                string.IsNullOrEmpty(serverName) ? key : serverName);
-            labelStack.Add(primary);
-
-            if (!string.IsNullOrEmpty(serverName))
-            {
-                var subtitle = UITools.CreateConfigurationLabel(key);
-                subtitle.style.fontSize = 11;
-                subtitle.style.color = new Color(0.65f, 0.65f, 0.65f);
-                subtitle.style.marginTop = 0;
-                labelStack.Add(subtitle);
-            }
-
-            row.Add(labelStack);
-
-            var forgetBtn = new Button(() =>
-            {
-                SavedServerPasswords.Remove(key);
-                RebuildSavedPasswordsList(container);
-            })
-            { text = "Forget" };
-            UITools.StyleConfigButton(forgetBtn);
-            forgetBtn.style.marginLeft = 8;
-            row.Add(forgetBtn);
-
-            container.Add(row);
-        }
-
-        var clearAllRow = UITools.CreateConfigurationRow();
-        clearAllRow.style.justifyContent = Justify.FlexEnd;
-        clearAllRow.style.marginTop = 8;
-        var clearAllBtn = new Button(() =>
-        {
-            SavedServerPasswords.RemoveAll();
-            RebuildSavedPasswordsList(container);
-        })
-        { text = "Forget all saved passwords" };
-        UITools.StyleConfigButton(clearAllBtn);
-        clearAllRow.Add(clearAllBtn);
-        container.Add(clearAllRow);
+        public Func<bool> Gate;                                   // null = always shown
+        public Func<List<string>> GetKeys;
+        public string EmptyMessage;
+        public Func<string, (string primary, string subtitle)> Labels;
+        public string RemoveText;
+        public Action<string> Remove;
+        public string ClearAllText;
+        public Action ClearAll;
+        public Action AfterMutate;                                // null = nothing extra
     }
 
-    // Mirrors RebuildSavedPasswordsList for the favorites store. The
-    // friendly name comes from the cached value the star button wrote
-    // when the user clicked it; we don't ping live for it here.
-    private static void RebuildFavoritesList(VisualElement container)
+    private static void RebuildStoreList(VisualElement container, StoreListSpec spec)
     {
         if (container == null) return;
         container.Clear();
+        if (spec.Gate != null && !spec.Gate()) return;
 
-        var keys = ServerBrowserSort.SnapshotFavoriteKeys();
+        void Rebuild() => RebuildStoreList(container, spec);
+
+        var keys = spec.GetKeys();
         if (keys.Count == 0)
         {
-            var empty = UITools.CreateConfigurationLabel("No favorites yet — click the ★ on a server row to favorite it.");
+            var empty = UITools.CreateConfigurationLabel(spec.EmptyMessage);
             empty.style.color = new Color(0.65f, 0.65f, 0.65f);
             empty.style.marginTop = 4;
             empty.style.marginBottom = 4;
@@ -590,19 +535,16 @@ public static class PlayerQoLSection
             var row = UITools.CreateConfigurationRow();
             row.style.alignItems = Align.Center;
 
-            string cached = ServerBrowserSort.GetFavoriteCachedName(key);
-
             var labelStack = new VisualElement();
             labelStack.style.flexGrow = 1;
             labelStack.style.flexDirection = FlexDirection.Column;
 
-            var primary = UITools.CreateConfigurationLabel(
-                string.IsNullOrEmpty(cached) ? key : cached);
-            labelStack.Add(primary);
+            var (primaryText, subtitleText) = spec.Labels(key);
+            labelStack.Add(UITools.CreateConfigurationLabel(primaryText));
 
-            if (!string.IsNullOrEmpty(cached))
+            if (!string.IsNullOrEmpty(subtitleText))
             {
-                var subtitle = UITools.CreateConfigurationLabel(key);
+                var subtitle = UITools.CreateConfigurationLabel(subtitleText);
                 subtitle.style.fontSize = 11;
                 subtitle.style.color = new Color(0.65f, 0.65f, 0.65f);
                 subtitle.style.marginTop = 0;
@@ -613,11 +555,11 @@ public static class PlayerQoLSection
 
             var removeBtn = new Button(() =>
             {
-                ServerBrowserSort.RemoveFavorite(key);
-                RebuildFavoritesList(container);
-                ServerBrowserSort.RefreshForCurrentBrowser();
+                spec.Remove(key);
+                Rebuild();
+                spec.AfterMutate?.Invoke();
             })
-            { text = "Remove" };
+            { text = spec.RemoveText };
             UITools.StyleConfigButton(removeBtn);
             removeBtn.style.marginLeft = 8;
             row.Add(removeBtn);
@@ -630,160 +572,100 @@ public static class PlayerQoLSection
         clearAllRow.style.marginTop = 8;
         var clearAllBtn = new Button(() =>
         {
-            ServerBrowserSort.RemoveAllFavorites();
-            RebuildFavoritesList(container);
-            ServerBrowserSort.RefreshForCurrentBrowser();
+            spec.ClearAll();
+            Rebuild();
+            spec.AfterMutate?.Invoke();
         })
-        { text = "Remove all favorites" };
+        { text = spec.ClearAllText };
         UITools.StyleConfigButton(clearAllBtn);
         clearAllRow.Add(clearAllBtn);
         container.Add(clearAllRow);
     }
 
-    // Mirrors RebuildFavoritesList for the blocked-servers store.
+    // Friendly server name (cached from a browser ping this session) on
+    // top, bare ip:port as the subtitle when we have a name.
+    private static void RebuildSavedPasswordsList(VisualElement container)
+        => RebuildStoreList(container, new StoreListSpec
+        {
+            Gate         = () => QoLRunner.Instance?.Config?.enableSavedServerPasswords ?? false,
+            GetKeys      = SavedServerPasswords.SnapshotKeys,
+            EmptyMessage = "No saved passwords yet.",
+            Labels       = key =>
+            {
+                string name = SavedServerPasswords.GetCachedServerName(key);
+                return (string.IsNullOrEmpty(name) ? key : name,
+                        string.IsNullOrEmpty(name) ? null : key);
+            },
+            RemoveText   = "Forget",
+            Remove       = SavedServerPasswords.Remove,
+            ClearAllText = "Forget all saved passwords",
+            ClearAll     = SavedServerPasswords.RemoveAll,
+        });
+
+    // Favorites store. Cached name comes from the value the star button
+    // wrote on click; we don't ping live for it here. Re-sorts the open
+    // browser after a removal so the row order updates immediately.
+    private static void RebuildFavoritesList(VisualElement container)
+        => RebuildStoreList(container, new StoreListSpec
+        {
+            GetKeys      = ServerBrowserSort.SnapshotFavoriteKeys,
+            EmptyMessage = "No favorites yet — click the ★ on a server row to favorite it.",
+            Labels       = key =>
+            {
+                string cached = ServerBrowserSort.GetFavoriteCachedName(key);
+                return (string.IsNullOrEmpty(cached) ? key : cached,
+                        string.IsNullOrEmpty(cached) ? null : key);
+            },
+            RemoveText   = "Remove",
+            Remove       = ServerBrowserSort.RemoveFavorite,
+            ClearAllText = "Remove all favorites",
+            ClearAll     = ServerBrowserSort.RemoveAllFavorites,
+            AfterMutate  = ServerBrowserSort.RefreshForCurrentBrowser,
+        });
+
+    // Blocked-servers store.
     private static void RebuildBlockedList(VisualElement container)
-    {
-        if (container == null) return;
-        container.Clear();
-
-        var keys = ServerBrowserSort.SnapshotBlockedKeys();
-        if (keys.Count == 0)
+        => RebuildStoreList(container, new StoreListSpec
         {
-            var empty = UITools.CreateConfigurationLabel("No blocked servers — right-click a row in the server browser to block.");
-            empty.style.color = new Color(0.65f, 0.65f, 0.65f);
-            empty.style.marginTop = 4;
-            empty.style.marginBottom = 4;
-            container.Add(empty);
-            return;
-        }
-
-        foreach (var key in keys)
-        {
-            var row = UITools.CreateConfigurationRow();
-            row.style.alignItems = Align.Center;
-
-            string cached = ServerBrowserSort.GetBlockedCachedName(key);
-
-            var labelStack = new VisualElement();
-            labelStack.style.flexGrow = 1;
-            labelStack.style.flexDirection = FlexDirection.Column;
-
-            var primary = UITools.CreateConfigurationLabel(
-                string.IsNullOrEmpty(cached) ? key : cached);
-            labelStack.Add(primary);
-
-            if (!string.IsNullOrEmpty(cached))
+            GetKeys      = ServerBrowserSort.SnapshotBlockedKeys,
+            EmptyMessage = "No blocked servers — right-click a row in the server browser to block.",
+            Labels       = key =>
             {
-                var subtitle = UITools.CreateConfigurationLabel(key);
-                subtitle.style.fontSize = 11;
-                subtitle.style.color = new Color(0.65f, 0.65f, 0.65f);
-                subtitle.style.marginTop = 0;
-                labelStack.Add(subtitle);
-            }
+                string cached = ServerBrowserSort.GetBlockedCachedName(key);
+                return (string.IsNullOrEmpty(cached) ? key : cached,
+                        string.IsNullOrEmpty(cached) ? null : key);
+            },
+            RemoveText   = "Unblock",
+            Remove       = ServerBrowserSort.RemoveBlock,
+            ClearAllText = "Unblock all servers",
+            ClearAll     = ServerBrowserSort.RemoveAllBlocks,
+            AfterMutate  = ServerBrowserSort.RefreshForCurrentBrowser,
+        });
 
-            row.Add(labelStack);
-
-            var unblockBtn = new Button(() =>
-            {
-                ServerBrowserSort.RemoveBlock(key);
-                RebuildBlockedList(container);
-                ServerBrowserSort.RefreshForCurrentBrowser();
-            })
-            { text = "Unblock" };
-            UITools.StyleConfigButton(unblockBtn);
-            unblockBtn.style.marginLeft = 8;
-            row.Add(unblockBtn);
-
-            container.Add(row);
-        }
-
-        var clearAllRow = UITools.CreateConfigurationRow();
-        clearAllRow.style.justifyContent = Justify.FlexEnd;
-        clearAllRow.style.marginTop = 8;
-        var clearAllBtn = new Button(() =>
-        {
-            ServerBrowserSort.RemoveAllBlocks();
-            RebuildBlockedList(container);
-            ServerBrowserSort.RefreshForCurrentBrowser();
-        })
-        { text = "Unblock all servers" };
-        UITools.StyleConfigButton(clearAllBtn);
-        clearAllRow.Add(clearAllBtn);
-        container.Add(clearAllRow);
-    }
-
-    // Mirrors RebuildSavedPasswordsList for the trusted-mods store —
-    // populated by MissingModsPopupSuppression when the user ticks the
-    // popup's "Don't show this popup again" toggle.
+    // Trusted-mods store — populated by MissingModsPopupSuppression when
+    // the user ticks the popup's "Don't show this popup again" toggle. The
+    // subtitle always shows the trusted mod count (and the ip:port when we
+    // also have a friendly name).
     private static void RebuildTrustedServersList(VisualElement container)
-    {
-        if (container == null) return;
-        container.Clear();
-
-        var keys = MissingModsPopupSuppression.SnapshotKeys();
-        if (keys.Count == 0)
+        => RebuildStoreList(container, new StoreListSpec
         {
-            var empty = UITools.CreateConfigurationLabel("No trusted servers yet.");
-            empty.style.color = new Color(0.65f, 0.65f, 0.65f);
-            empty.style.marginTop = 4;
-            empty.style.marginBottom = 4;
-            container.Add(empty);
-            return;
-        }
-
-        foreach (var key in keys)
-        {
-            var row = UITools.CreateConfigurationRow();
-            row.style.alignItems = Align.Center;
-
-            string serverName = SavedServerPasswords.GetCachedServerName(key);
-            int modCount = MissingModsPopupSuppression.CountModsFor(key);
-
-            var labelStack = new VisualElement();
-            labelStack.style.flexGrow = 1;
-            labelStack.style.flexDirection = FlexDirection.Column;
-
-            var primary = UITools.CreateConfigurationLabel(
-                string.IsNullOrEmpty(serverName) ? key : serverName);
-            labelStack.Add(primary);
-
-            string subtitleText = string.IsNullOrEmpty(serverName)
-                ? $"{modCount} mod{(modCount == 1 ? "" : "s")} trusted"
-                : $"{key} — {modCount} mod{(modCount == 1 ? "" : "s")} trusted";
-            var subtitle = UITools.CreateConfigurationLabel(subtitleText);
-            subtitle.style.fontSize = 11;
-            subtitle.style.color = new Color(0.65f, 0.65f, 0.65f);
-            subtitle.style.marginTop = 0;
-            labelStack.Add(subtitle);
-
-            row.Add(labelStack);
-
-            var forgetBtn = new Button(() =>
+            GetKeys      = MissingModsPopupSuppression.SnapshotKeys,
+            EmptyMessage = "No trusted servers yet.",
+            Labels       = key =>
             {
-                MissingModsPopupSuppression.Remove(key);
-                RebuildTrustedServersList(container);
-            })
-            { text = "Untrust" };
-            UITools.StyleConfigButton(forgetBtn);
-            forgetBtn.style.marginLeft = 8;
-            row.Add(forgetBtn);
-
-            container.Add(row);
-        }
-
-        var clearAllRow = UITools.CreateConfigurationRow();
-        clearAllRow.style.justifyContent = Justify.FlexEnd;
-        clearAllRow.style.marginTop = 8;
-        var clearAllBtn = new Button(() =>
-        {
-            MissingModsPopupSuppression.RemoveAll();
-            RebuildTrustedServersList(container);
-        })
-        { text = "Untrust all servers" };
-        UITools.StyleConfigButton(clearAllBtn);
-        clearAllRow.Add(clearAllBtn);
-        container.Add(clearAllRow);
-    }
+                string name = SavedServerPasswords.GetCachedServerName(key);
+                int modCount = MissingModsPopupSuppression.CountModsFor(key);
+                string plural = modCount == 1 ? "" : "s";
+                string subtitle = string.IsNullOrEmpty(name)
+                    ? $"{modCount} mod{plural} trusted"
+                    : $"{key} — {modCount} mod{plural} trusted";
+                return (string.IsNullOrEmpty(name) ? key : name, subtitle);
+            },
+            RemoveText   = "Untrust",
+            Remove       = MissingModsPopupSuppression.Remove,
+            ClearAllText = "Untrust all servers",
+            ClearAll     = MissingModsPopupSuppression.RemoveAll,
+        });
 
     private static VisualElement ToggleRow(VisualElement parent, string label, bool initial, Action<bool> onChange)
     {

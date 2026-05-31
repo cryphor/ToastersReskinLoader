@@ -82,18 +82,26 @@ public class QoLProfile
     public bool EnableVanillaUIRetheme { get; set; } = true;
     [JsonProperty("enableServerSlotQueue")]
     public bool EnableServerSlotQueue { get; set; } = true;
-    [JsonProperty("enableMainMenuQuickJoin")]
-    public bool EnableMainMenuQuickJoin { get; set; } = true;
+    // V2 key rename (see note above) — flipped to default-off, so existing
+    // saves that merely inherited the old default-on don't keep "true".
+    [JsonProperty("enableMainMenuQuickJoinV2")]
+    public bool EnableMainMenuQuickJoin { get; set; } = false;
     [JsonProperty("enableMainMenuServerBrowser")]
     public bool EnableMainMenuServerBrowser { get; set; } = false;
     [JsonProperty("enableUiTextShadow")]
     public bool EnableUiTextShadow { get; set; } = true;
-    [JsonProperty("enableScoreboardMilliseconds")]
-    public bool EnableScoreboardMilliseconds { get; set; } = true;
+    // V2 key rename (same migration trick as the cache/fast-scan keys
+    // above): the original "enableScoreboardMilliseconds" shipped
+    // default-on, so renaming forces existing saves that merely inherited
+    // that default back to the new default-off instead of keeping "true".
+    [JsonProperty("enableScoreboardMillisecondsV2")]
+    public bool EnableScoreboardMilliseconds { get; set; } = false;
     [JsonProperty("enableScoreboardClockColor")]
     public bool EnableScoreboardClockColor { get; set; } = true;
-    [JsonProperty("enableChatNoFade")]
-    public bool EnableChatNoFade { get; set; } = true;
+    // V2 key rename (see note above) — flipped to default-off, so existing
+    // saves that merely inherited the old default-on don't keep "true".
+    [JsonProperty("enableChatNoFadeV2")]
+    public bool EnableChatNoFade { get; set; } = false;
     [JsonProperty("enableChatTransparentContainer")]
     public bool EnableChatTransparentContainer { get; set; } = true;
     [JsonProperty("enableEnhancedModMenu")]

@@ -8,7 +8,7 @@
 //     2-arg overload doesn't actually enforce the connect timeout and
 //     blocks on the ~64s OS-level TCP SYN_SENT timeout on unreachable
 //     hosts.
-//   * Every 1 second, ping the target. As soon as players < maxPlayers,
+//   * Roughly every 0.75s, ping the target. As soon as players < maxPlayers,
 //     fire ConnectionManager.Client_StartClient with the saved password
 //     (if SavedServerPasswords has one) to auto-join — even if the user
 //     is currently in a different server or in local practice. They get
@@ -55,18 +55,23 @@ namespace ToasterReskinLoader.qol.serverbrowser;
 
 internal static class ServerSlotQueue
 {
-    // Loop ticks at 4Hz. Every 4 ticks (≈1s) we ping the target server;
-    // every tick we update the animated dots and re-assert panel state.
+    // Loop ticks at 4Hz (250ms). Every 3 ticks (~750ms) we ping the target
+    // server; every tick we update the animated dots and re-assert panel
+    // state.
     private const int LoopTickMs           = 250;
     private const int PingEveryNTicks      = 3;
     private const int PingConnectTimeoutMs  = 1000;
     private const int PingResponseTimeoutMs = 1000;
 
     // Queue state (single in-flight queue per session — the user can
-    // only be trying to join one server at a time anyway).
-    private static EndPoint _targetEndPoint;
-    private static string  _targetName;
-    private static string  _targetPassword;
+    // only be trying to join one server at a time anyway). The target
+    // trio is written on the main thread (event handlers) and read on the
+    // ping worker (RunOnePing / TryGetSavedPassword), so it's volatile to
+    // match the care taken with the shared flags below — no torn/stale
+    // reads across the thread boundary.
+    private static volatile EndPoint _targetEndPoint;
+    private static volatile string  _targetName;
+    private static volatile string  _targetPassword;
     private static DateTime _startedUtc;
     private static CancellationTokenSource _cts;
 
@@ -178,7 +183,7 @@ internal static class ServerSlotQueue
             if (_cts == null) _cts = new CancellationTokenSource();
 
             Plugin.Log($"[QoL] slot-queue: {(sameTarget ? "still-full retry" : "starting queue")} for {_targetEndPoint.ipAddress}:{_targetEndPoint.port} ({_targetName})");
-            ShowQueuePanel(_targetName);
+            ShowQueuePanel();
 
             // Only kick a fresh poll task on the first arm. A still-full
             // re-rejection (same target) means our previous PollLoopAsync
@@ -186,7 +191,12 @@ internal static class ServerSlotQueue
             // would double-poll.
             if (!sameTarget)
             {
-                Task.Run(() => PollLoopAsync(_cts.Token));
+                // Capture the token on the main thread before handing off:
+                // reading _cts.Token inside the lambda would race a
+                // concurrent CancelInternal that nulls _cts (NRE on the
+                // pool thread).
+                var token = _cts.Token;
+                Task.Run(() => PollLoopAsync(token));
             }
         }
         catch (Exception e) { Plugin.LogError("[QoL] slot-queue OnConnectionRejected failed: " + e); }
@@ -257,7 +267,7 @@ internal static class ServerSlotQueue
     //     phase text between our calls).
     //   * Updates the animated phase text. Animation runs every tick so
     //     the panel always looks alive even when no ping is in flight.
-    //   * Every 4th tick (≈1s), spawns a non-awaited ping on a worker
+    //   * Every 3rd tick (~750ms), spawns a non-awaited ping on a worker
     //     thread. The ping handler updates _lastPingUnreachable when
     //     done and, on slot detection, marshals the auto-join to main.
     private static async Task PollLoopAsync(CancellationToken token)
@@ -294,6 +304,11 @@ internal static class ServerSlotQueue
     private static void RunOnePing(CancellationToken token)
     {
         if (token.IsCancellationRequested) return;
+        // A join is already in flight for this target — don't stack
+        // another Client_StartClient on top of the in-progress handshake.
+        // The connect outcome (OnClientConnected, or a fresh ServerFull
+        // rejection re-arming us) clears _joining and resumes pinging.
+        if (_joining) return;
         var ep = _targetEndPoint;
         if (ep == null) return;
         _pingingNow = true;
@@ -499,22 +514,13 @@ internal static class ServerSlotQueue
 
     // ─────────────────────────── UI driver ────────────────────────────────
 
-    // Reflection cache for the matchmaking panel setters.
-    private static readonly Type UIMatchmakingType = AccessTools.TypeByName("UIMatchmaking");
-    private static readonly MethodInfo SetVisible      = UIMatchmakingType?.GetMethod("SetMatchingVisibility");
-    private static readonly MethodInfo SetPhaseText    = UIMatchmakingType?.GetMethod("SetMatchingPhaseText");
-    private static readonly MethodInfo SetConnectVis   = UIMatchmakingType?.GetMethod("SetMatchingConnectButtonVisibility");
-    private static readonly MethodInfo SetCloseVis     = UIMatchmakingType?.GetMethod("SetMatchingCloseButtonVisibility");
-    private static readonly MethodInfo SetTimeVis      = UIMatchmakingType?.GetMethod("SetMatchingTimeVisibility");
-    private static readonly MethodInfo SetTimeText     = UIMatchmakingType?.GetMethod("SetMatchingTimeText");
-    private static readonly PropertyInfo IsVisibleProp = UIMatchmakingType?.GetProperty("IsVisible");
-    private static readonly FieldInfo    MatchingField = UIMatchmakingType?.GetField("matching",
-        BindingFlags.Instance | BindingFlags.NonPublic);
-
-    private static void ShowQueuePanel(string name)
+    // Initial show on arm. Sets a placeholder phase line for instant
+    // feedback before the first RenderTick lands (~one tick later); the
+    // tick loop then owns the phase text from there on.
+    private static void ShowQueuePanel()
     {
         EnsurePanelShown();
-        SetPhaseTextSafe($"WAITING FOR SLOT TO OPEN");
+        SetPhaseTextSafe("WAITING FOR SLOT TO OPEN");
     }
 
     // Idempotent. Re-applies the on-screen + button state we want every
@@ -530,15 +536,14 @@ internal static class ServerSlotQueue
     // floating across scenes.
     private static void EnsurePanelShown()
     {
-        var panel = GetMatchmakingPanel();
-        if (panel == null) return;
+        if (MatchmakingPanelOverlay.Panel == null) return;
         try
         {
-            IsVisibleProp?.SetValue(panel, true);
-            SetVisible?.Invoke(panel,    new object[] { true });
-            SetConnectVis?.Invoke(panel, new object[] { false });
-            SetCloseVis?.Invoke(panel,   new object[] { true });
-            EnsureLabelInjections(panel);
+            MatchmakingPanelOverlay.SetIsVisible(true);
+            MatchmakingPanelOverlay.SetVisible(true);
+            MatchmakingPanelOverlay.SetConnectButton(false);
+            MatchmakingPanelOverlay.SetCloseButton(true);
+            EnsureLabelInjections();
         }
         catch (Exception e) { Debug.LogWarning("[QoL] ServerSlotQueue EnsurePanelShown failed: " + e.Message); }
     }
@@ -553,10 +558,9 @@ internal static class ServerSlotQueue
     // live, so the time + close icons stay where they were. Runs
     // idempotently every tick because scene transitions can rebuild
     // the DOM (we'd lose the wrapper otherwise).
-    private static void EnsureLabelInjections(object panel)
+    private static void EnsureLabelInjections()
     {
-        if (panel == null || MatchingField == null) return;
-        var matching = MatchingField.GetValue(panel) as UnityEngine.UIElements.VisualElement;
+        var matching = MatchmakingPanelOverlay.GetMatchingContainer();
         if (matching == null) return;
 
         var phaseLabel = matching.Q<UnityEngine.UIElements.Label>("PhaseLabel");
@@ -625,41 +629,22 @@ internal static class ServerSlotQueue
         }
     }
 
-    private static void SetTimeVisibleSafe(bool visible)
-    {
-        var panel = GetMatchmakingPanel();
-        if (panel == null) return;
-        try { SetTimeVis?.Invoke(panel, new object[] { visible }); }
-        catch { }
-    }
+    private static void SetTimeVisibleSafe(bool visible) => MatchmakingPanelOverlay.SetTimeVisible(visible);
 
-    private static void SetTimeTextSafe(int seconds)
-    {
-        var panel = GetMatchmakingPanel();
-        if (panel == null) return;
-        try { SetTimeText?.Invoke(panel, new object[] { seconds }); }
-        catch { }
-    }
+    private static void SetTimeTextSafe(int seconds) => MatchmakingPanelOverlay.SetTimeText(seconds);
 
-    private static void SetPhaseTextSafe(string text)
-    {
-        var panel = GetMatchmakingPanel();
-        if (panel == null) return;
-        try { SetPhaseText?.Invoke(panel, new object[] { text }); }
-        catch { }
-    }
+    private static void SetPhaseTextSafe(string text) => MatchmakingPanelOverlay.SetPhaseText(text);
 
     private static void HideQueuePanel()
     {
-        var panel = GetMatchmakingPanel();
-        if (panel == null) return;
+        if (MatchmakingPanelOverlay.Panel == null) return;
         try
         {
-            SetVisible?.Invoke(panel,    new object[] { false });
-            SetPhaseText?.Invoke(panel,  new object[] { string.Empty });
-            SetCloseVis?.Invoke(panel,   new object[] { false });
-            SetConnectVis?.Invoke(panel, new object[] { false });
-            SetTimeVis?.Invoke(panel,    new object[] { false });
+            MatchmakingPanelOverlay.SetVisible(false);
+            MatchmakingPanelOverlay.SetPhaseText(string.Empty);
+            MatchmakingPanelOverlay.SetCloseButton(false);
+            MatchmakingPanelOverlay.SetConnectButton(false);
+            MatchmakingPanelOverlay.SetTimeVisible(false);
 
             // Tear down our DOM mutations so the panel goes back to a
             // pristine vanilla state for any future matchmaking use:
@@ -702,16 +687,6 @@ internal static class ServerSlotQueue
             _phaseOriginalIndex = 0;
         }
         catch (Exception e) { Debug.LogWarning("[QoL] ServerSlotQueue HideQueuePanel failed: " + e.Message); }
-    }
-
-    private static object GetMatchmakingPanel()
-    {
-        var ui = MonoBehaviourSingleton<UIManager>.Instance;
-        if (ui == null) return null;
-        // UIManager.Matchmaking is the live UIMatchmaking instance.
-        var prop = ui.GetType().GetField("Matchmaking",
-            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-        return prop?.GetValue(ui);
     }
 
     private static void MarshalToMainThread(Action action)

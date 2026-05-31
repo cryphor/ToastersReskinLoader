@@ -109,6 +109,12 @@ internal static class HideInactiveChat
     private static readonly System.Collections.Generic.Dictionary<VisualElement, OriginalBg> _originalBg
         = new System.Collections.Generic.Dictionary<VisualElement, OriginalBg>();
 
+    // The chat View we last populated the caches against. A scene reload
+    // rebuilds UIChat's tree, orphaning every element in the two caches
+    // above; without dropping them we'd pin those dead VisualElements for
+    // the rest of the session. Compared on each transparency pass.
+    private static VisualElement _lastChatView;
+
     private static void CaptureOriginalBg(VisualElement v)
     {
         if (v == null) return;
@@ -241,6 +247,17 @@ internal static class HideInactiveChat
     // the user can still see where they're typing.
     private static void ApplyContainerTransparency(UIChat chat)
     {
+        // Drop caches keyed off a previous chat-view instance (scene
+        // reload rebuilds the tree) before we touch anything, so we never
+        // hold strong refs to orphaned elements.
+        var currentView = chat?.View;
+        if (!ReferenceEquals(currentView, _lastChatView))
+        {
+            _touchedDescendants.Clear();
+            _originalBg.Clear();
+            _lastChatView = currentView;
+        }
+
         bool on = WantTransparentContainer;
         StyleColor transparentColor = new StyleColor(new Color(0f, 0f, 0f, 0f));
 
@@ -495,7 +512,14 @@ internal static class HideInactiveChat
             {
                 var tf = GetTextField(__instance);
                 if (tf != null)
+                {
                     tf.label = __instance.IsTeamChat ? "  [TEAM]" : string.Empty;
+                    // BaseField creates the label element lazily on this
+                    // first non-empty assignment — after UiTextShadow's
+                    // view walk — so shadow it explicitly to match the
+                    // chat text next to it.
+                    UiTextShadow.ApplyToSubtree(tf);
+                }
             }
             catch (Exception e) { Debug.LogWarning("[QoL] team-chat label apply failed: " + e.Message); }
         }

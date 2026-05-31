@@ -11,8 +11,11 @@
 //     UIManager.Scoreboard       — hold-to-view player list
 //     UIManager.Hud              — speed indicator + stamina
 //     UIManager.Announcements    — goal / assist banner
-//     UIManager.Minimap          — any labels overlaid on the minimap
 //     UIManager.Usernames        — floating nameplate text
+//
+// The minimap is deliberately NOT in this list: its only text is the
+// per-player jersey numbers, and a drop-shadow on those little glyphs
+// reads as muddy rather than crisp.
 //
 // Each is found via reflection against the named UIManager field, then
 // we walk that view's root once for all current TextElements and
@@ -51,7 +54,6 @@ internal static class UiTextShadow
         "Scoreboard",
         "Hud",
         "Announcements",
-        "Minimap",
         "Usernames",
     };
 
@@ -68,6 +70,19 @@ internal static class UiTextShadow
     {
         try { ApplyAcrossAllInGameViews(); }
         catch (Exception e) { Plugin.LogWarning("[QoL] UiTextShadow refresh failed: " + e.Message); }
+    }
+
+    // Apply (or clear) the shadow on a single subtree on demand. For
+    // elements created lazily AFTER the per-view walk — e.g. the chat
+    // input's "[TEAM]" label, which BaseField only instantiates the first
+    // time a non-empty label is set, and which no chat-root
+    // GeometryChanged necessarily covers (adding it doesn't resize the
+    // root). Honors the on/off state like the regular walk.
+    internal static void ApplyToSubtree(VisualElement root)
+    {
+        if (root == null) return;
+        try { WalkAndApply(root); }
+        catch (Exception e) { Plugin.LogWarning("[QoL] UiTextShadow ApplyToSubtree failed: " + e.Message); }
     }
 
     // Catch any in-game view that becomes visible after our initial
@@ -128,7 +143,6 @@ internal static class UiTextShadow
             case "UIScoreboard":
             case "UIHUD":
             case "UIAnnouncements":
-            case "UIMinimap":
             case "UIUsernames":
                 return true;
             default:
@@ -165,6 +179,11 @@ internal static class UiTextShadow
 
     private static void OnRootGeometry(GeometryChangedEvent evt)
     {
+        // When the feature is off there's nothing to add on a geometry
+        // change — the one-time clear is handled by RefreshForCurrentState.
+        // Bail before the (not-free) TextElement subtree query rather than
+        // walk + write Null forever after the first disable.
+        if (!Enabled) return;
         if (evt.target is VisualElement ve) WalkAndApply(ve);
     }
 
@@ -178,8 +197,23 @@ internal static class UiTextShadow
         {
             try
             {
-                if (on) te.style.textShadow = ShadowOn;
-                else    te.style.textShadow = StyleKeyword.Null;
+                // Assigning style.textShadow always marks the element dirty
+                // even when the value is unchanged, which churns layout on
+                // the frequent GeometryChanged re-walks (chat especially).
+                // Only write when our inline value actually differs.
+                // (resolvedStyle doesn't expose textShadow, so we compare
+                // against the inline style we previously set.)
+                StyleTextShadow cur = te.style.textShadow;
+                if (on)
+                {
+                    bool alreadyOn = cur.keyword == StyleKeyword.Undefined
+                                     && cur.value.Equals(ShadowOn);
+                    if (!alreadyOn) te.style.textShadow = ShadowOn;
+                }
+                else if (cur.keyword != StyleKeyword.Null)
+                {
+                    te.style.textShadow = StyleKeyword.Null;
+                }
             }
             catch { }
         }
