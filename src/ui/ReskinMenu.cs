@@ -23,8 +23,13 @@ public static class ReskinMenu
     public static VisualElement contentScrollViewContent;
     
     // menu state
+<<<<<<< HEAD
+    public static string[] sections = new []{"Packs", "Appearance", "Sticks", "Tapes", "Skaters", "Goalies", "Pucks", "Puck FX", "Puck Indicator", "Arena",
+        "Skybox", "Shadows", "User Interface", "Quality of Life", "Glossiness", "Extras", "About" };
+=======
     public static string[] sections = new []{"Packs", "Presets", "Appearance", "Players", "Sticks", "Tapes", "Skaters", "Goalies", "Pucks", "Puck FX", "Arena",
         "Skybox", "Shadows", "HUD", "Quality of Life", "Glossiness", "Extras", "About" };
+>>>>>>> 597935d61d40666c1d7cdd2906941bf9a975d555
     public static int selectedSectionIndex = 0;
 
     // One row of the sidebar: a bucket divider (labeled separator line), a collapsible group
@@ -409,6 +414,9 @@ public static class ReskinMenu
                 break;
             case "Puck FX":
                 PuckFXSection.CreateSection(contentScrollViewContent);
+                break;
+            case "Puck Indicator":
+                PuckIndicatorSection.CreateSection(contentScrollViewContent);
                 break;
             case "Shadows":
                 ShadowsSection.CreateSection(contentScrollViewContent);
