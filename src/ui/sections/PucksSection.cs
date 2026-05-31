@@ -11,7 +11,6 @@ public static class PucksSection
     // back into the dropdown.
     private static PopupField<ReskinRegistry.ReskinEntry> _puckDropdown;
 
-    private static PopupField<ReskinRegistry.ReskinEntry> puckDropdown;
     public static void CreateSection(VisualElement contentScrollViewContent)
     {
         List<ReskinRegistry.ReskinEntry> allPuckReskins = ReskinRegistry.GetReskinEntriesByType("puck");
@@ -65,7 +64,7 @@ public static class PucksSection
         selectPuckLabel.style.marginRight = 8;
         puckSelectionRow.Add(selectPuckLabel);
 
-        puckDropdown = UITools.CreateConfigurationDropdownField();
+        PopupField<ReskinRegistry.ReskinEntry> puckDropdown = UITools.CreateConfigurationDropdownField();
         puckDropdown.choices = dropdownPuckReskins;
         puckDropdown.value = dropdownPuckReskins.Count > 0 ? dropdownPuckReskins[0] : defaultEntry;
         _puckDropdown = puckDropdown;
@@ -271,11 +270,6 @@ public static class PucksSection
                     RefreshPuckDropdown(_puckDropdown);
                     if (!_puckDropdown.choices.Contains(_puckDropdown.value))
                         _puckDropdown.value = _puckDropdown.choices.Count > 0 ? _puckDropdown.choices[0] : null;
-                }
-                RefreshPuckDropdown(puckDropdown);
-                if (puckDropdown.choices.Count > 0)
-                {
-                    puckDropdown.value = puckDropdown.choices[0];
                 }
                 RefreshRandomizerList(contentScrollViewContent, puckReskins);
                 PuckPreview.Refresh();
