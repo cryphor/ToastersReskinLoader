@@ -192,6 +192,8 @@ public static class SwapperManager
     {
         Plugin.Log($"OnSceneLoaded: {scene.name}");
         ToasterReskinLoader.qol.ArenaVisuals.InvalidateCache();
+        ToasterReskinLoader.qol.PatchMinimapRotation.ResetTracking();
+        ToasterReskinLoader.qol.PatchPlayerUsernameColors.ResetTracking();
         GlossSwapper.ResetScanScheduled();
         if (scene.name.Equals("locker_room"))
         {
