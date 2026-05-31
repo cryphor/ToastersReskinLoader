@@ -87,19 +87,6 @@ public static class PuckIndicatorSection
         opacityRow.Add(opacitySlider);
         contentScrollViewContent.Add(opacityRow);
 
-        // --- Show Elevation ---
-        var elevationRow = UITools.CreateConfigurationRow();
-        elevationRow.Add(UITools.CreateConfigurationLabel("Show Elevation"));
-        var elevationToggle = UITools.CreateConfigurationCheckbox(profile.puckIndicatorShowElevation);
-        elevationToggle.RegisterCallback<ChangeEvent<bool>>(evt =>
-        {
-            profile.puckIndicatorShowElevation = evt.newValue;
-            ReskinProfileManager.SaveProfile();
-            PuckIndicatorSwapper.ApplyAll();
-        });
-        elevationRow.Add(elevationToggle);
-        contentScrollViewContent.Add(elevationRow);
-
         // --- Reset Button ---
         Button resetButton = new Button
         {

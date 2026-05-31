@@ -1363,7 +1363,7 @@ public static class ReskinProfileManager
         public bool puckIndicatorEnabled = false;
         public Color puckIndicatorArrowColor = Color.white;
         public float puckIndicatorArrowSize = 30f;
-        public float puckIndicatorEdgeMargin = 20f;
+        public float puckIndicatorEdgeMargin = 60f;
         public float puckIndicatorOpacity = 0.8f;
         public bool puckIndicatorShowElevation = true;
 

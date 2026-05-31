@@ -222,7 +222,7 @@ public static class PuckIndicatorSwapper
         float effectiveHeight = Mathf.Max(0f, Mathf.Abs(heightDelta) - heightDeadzone)
                                 * Mathf.Sign(heightDelta);
         // Invert: puck above camera (positive delta) → ny negative → arrow at top
-        float nyRaw = effectiveHeight * 6f / (vfov * 0.55f);
+        float nyRaw = -effectiveHeight * 6f / (vfov * 0.55f);
         float ny = Mathf.Clamp(nyRaw, -1f, 1f);
 
         // Map normalised coords to a point on the screen rectangle.
@@ -238,10 +238,20 @@ public static class PuckIndicatorSwapper
 
         if (Mathf.Abs(dir.x) < 0.001f && Mathf.Abs(dir.y) < 0.001f)
         {
-            // Degenerate: puck is exactly ahead in z but off in y.
-            // Place arrow at top-centre, pointing up.
-            targetPos = new Vector2(centre.x, Screen.height - margin);
-            targetRot = -90f;
+            // Degenerate: puck is directly ahead in xz (on-screen or nearly so)
+            // but off in y. Place arrow at top or bottom edge based on elevation.
+            if (heightDelta > 0f)
+            {
+                // Puck above camera → arrow at top, pointing up
+                targetPos = new Vector2(centre.x, margin);
+                targetRot = -90f;
+            }
+            else
+            {
+                // Puck below camera → arrow at bottom, pointing down
+                targetPos = new Vector2(centre.x, Screen.height - margin);
+                targetRot = 90f;
+            }
         }
         else
         {
