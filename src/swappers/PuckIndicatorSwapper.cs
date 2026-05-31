@@ -162,110 +162,81 @@ public static class PuckIndicatorSwapper
         if (puck == null || puck.gameObject == null) { FadeOut(); return; }
         Vector3 puckPos = puck.transform.position;
 
-        // ── Is puck on-screen? ─────────────────────────────────────────
-        // WorldToViewportPoint returns 0..1 range for points in front
-        // of and within the frustum.  z < 0 means behind the camera.
-        Vector3 vp = cam.WorldToViewportPoint(puckPos);
-        bool inFront = vp.z > 0f;
-        bool onFront = inFront && vp.x > 0f && vp.x < 1f && vp.y > 0f && vp.y < 1f;
+        // ── Direction from camera to puck ───────────────────────────────
+        Vector3 toPuck = (puckPos - cam.transform.position);
 
-        if (onFront)
+        // Project onto camera axes
+        float dotFwd  = Vector3.Dot(toPuck, cam.transform.forward);
+        float dotRight = Vector3.Dot(toPuck, cam.transform.right);
+        float dotUp   = Vector3.Dot(toPuck, cam.transform.up);
+
+        bool behindCam = dotFwd < 0f;
+
+        // Perspective division using |dotFwd| as the denominator.
+        // Using abs ensures behind-camera pucks map to the correct
+        // screen edge (e.g. puck behind+right → arrow on right edge).
+        float fwdAbs = Mathf.Abs(dotFwd);
+        // Guard against zero (puck exactly at camera position)
+        if (fwdAbs < 0.0001f) fwdAbs = 0.0001f;
+
+        float perspX = dotRight / fwdAbs;
+        float perspY = dotUp   / fwdAbs;
+
+        // Normalise by half-FOV tangent so ±1 = screen edge.
+        float halfVFovTan = Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad);
+        float halfHFovTan = halfVFovTan * cam.aspect;
+
+        float nx = perspX / halfHFovTan;
+        float ny = perspY / halfVFovTan;
+
+        // On-screen check (only for in-front pucks)
+        bool onScreen = !behindCam && Mathf.Abs(nx) < 1f && Mathf.Abs(ny) < 1f;
+        if (onScreen)
         {
-            // Puck is within the camera frustum — no indicator needed.
             FadeOut();
             return;
         }
 
-        // ── Compute angle from camera to puck ──────────────────────────
-        Vector3 toPuck   = (puckPos - cam.transform.position).normalized;
-        Vector3 camFwd   = cam.transform.forward;
-        float   dotFwd   = Vector3.Dot(toPuck, camFwd);
-        bool    behindCam = dotFwd < 0f;
-
-        // Yaw angle in degrees: 0 = straight ahead, - = leftward, + = rightward.
-        // Horizontal angle from camera to puck projected onto the camera plane.
-        float yaw;
-        if (behindCam)
-        {
-            yaw = Mathf.Atan2(
-                      Vector3.Dot(toPuck, cam.transform.right),
-                      -Vector3.Dot(toPuck, camFwd))
-                 * Mathf.Rad2Deg;
-        }
-        else
-        {
-            yaw = Mathf.Atan2(
-                      Vector3.Dot(toPuck, cam.transform.right),
-                      Vector3.Dot(toPuck, camFwd))
-                 * Mathf.Rad2Deg;
-        }
-
-        // ── Map yaw/pitch to a screen-edge position ────────────────────
-        // Convert angles to normalised coords in [-1,1] where (±1,±1)
-        // are the corners of the screen.
-        float hfov = cam.fieldOfView * Mathf.Max(cam.aspect, 0.01f);
-        float vfov = cam.fieldOfView;
-
-        // Normalise so that ~half-FOV → ±1
-        float nx = Mathf.Clamp(yaw / (hfov * 0.55f), -1f, 1f);
-
-        // Vertical axis: world-space height delta with deadzone.
-        // Positive heightDelta (puck above camera) → positive ny →
-        //   arrow at TOP of screen (screen Y increases downward in
-        //   Unity UI, so +ny → +Y → bottom... wait, in Unity UI
-        //   Toolkit top=0 is the TOP, so +Y goes DOWN.
-        //   A puck ABOVE the camera should show the arrow at the
-        //   TOP of the screen (small Y), so positive heightDelta
-        //   must produce NEGATIVE ny.
-        float heightDelta = puckPos.y - cam.transform.position.y;
-        float heightDeadzone = 0.4f;
-        float effectiveHeight = Mathf.Max(0f, Mathf.Abs(heightDelta) - heightDeadzone)
-                                * Mathf.Sign(heightDelta);
-        // Invert: puck above camera (positive delta) → ny negative → arrow at top
-        float nyRaw = -effectiveHeight * 6f / (vfov * 0.55f);
-        float ny = Mathf.Clamp(nyRaw, -1f, 1f);
-
-        // Map normalised coords to a point on the screen rectangle.
-        //  nx = -1 → left edge, nx = +1 → right edge, etc.
-        //  We use a "ray from center" approach: cast a ray from
-        //  screen centre in direction (nx, ny) and find where it
-        //  hits the inset border.
+        // ── Map to screen-edge position ────────────────────────────────
+        // Unity UI: Y=0 is TOP.  +ny = puck above camera frustum →
+        // arrow should be at top (small Y), so flip Y.
         Vector2 centre = new Vector2(Screen.width * 0.5f, Screen.height * 0.5f);
-        Vector2 dir    = new Vector2(nx, ny);
-        float margin   = profile.puckIndicatorEdgeMargin;
-        Vector2 targetPos;   // pixel position of arrow centre
-        float   targetRot;   // clockwise degrees (0 = pointing right)
+        float margin = profile.puckIndicatorEdgeMargin;
+        Vector2 dir = new Vector2(nx, -ny);
+
+        Vector2 targetPos;
+        float targetRot;
 
         if (Mathf.Abs(dir.x) < 0.001f && Mathf.Abs(dir.y) < 0.001f)
         {
-            // Degenerate: puck is directly ahead in xz (on-screen or nearly so)
-            // but off in y. Place arrow at top or bottom edge based on elevation.
+            // Degenerate: puck is on the camera's forward axis.
+            // Use world-space height delta to pick top vs bottom edge.
+            float heightDelta = puckPos.y - cam.transform.position.y;
             if (heightDelta > 0f)
             {
-                // Puck above camera → arrow at top, pointing up
+                // Puck above → arrow at top, pointing up
                 targetPos = new Vector2(centre.x, margin);
                 targetRot = -90f;
             }
             else
             {
-                // Puck below camera → arrow at bottom, pointing down
+                // Puck below (or level) → arrow at bottom, pointing down
                 targetPos = new Vector2(centre.x, Screen.height - margin);
                 targetRot = 90f;
             }
         }
         else
         {
-            // Normalise direction so the longer component is ±1
+            // Ray from centre toward puck, find where it hits the
+            // inset screen rectangle.
             float absX = Mathf.Abs(dir.x);
             float absY = Mathf.Abs(dir.y);
             float scale = Mathf.Max(absX, absY);
-            Vector2 ndir = dir / scale; // one component is ±1, the other is in [-1,1]
+            Vector2 ndir = dir / scale;
 
-            // The screen rectangle half-size (inset by margin)
             float rectHalfW = Screen.width  * 0.5f - margin;
             float rectHalfH = Screen.height * 0.5f - margin;
 
-            // Scale so we hit the nearer edge
             float t;
             if (Mathf.Abs(ndir.x) > Mathf.Abs(ndir.y))
                 t = rectHalfW / Mathf.Abs(ndir.x);
@@ -274,16 +245,10 @@ public static class PuckIndicatorSwapper
 
             targetPos = centre + ndir * t;
 
-            // Clamp to be safe
             targetPos.x = Mathf.Clamp(targetPos.x, margin, Screen.width  - margin);
             targetPos.y = Mathf.Clamp(targetPos.y, margin, Screen.height - margin);
 
-            // Arrow rotation: the triangle points right (0°) by default,
-            // so we rotate by the *opposite* of the direction from centre
-            // to puck, i.e. the arrow tip faces toward the puck.
-            // But we want the arrow on the edge with its tip pointing
-            // *inward* toward the puck, so the arrow should point from
-            // the edge toward the puck = opposite of ndir.
+            // Arrow points from edge inward toward the puck
             targetRot = Mathf.Atan2(-ndir.y, -ndir.x) * Mathf.Rad2Deg;
         }
 
