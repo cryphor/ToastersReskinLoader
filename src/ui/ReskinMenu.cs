@@ -27,22 +27,47 @@ public static class ReskinMenu
         "Skybox", "Shadows", "HUD", "Quality of Life", "Glossiness", "Extras", "About" };
     public static int selectedSectionIndex = 0;
 
-    // Visual sidebar layout. A null group renders top-level section button(s); a named group
-    // renders a collapsible header with indented child section buttons. Every name here must
-    // exist in `sections` above.
-    private static readonly (string Group, string[] Items)[] sidebarLayout =
+    // One row of the sidebar: a bucket divider (labeled separator line), a collapsible group
+    // (header + indented child sections), or a standalone top-level section button.
+    private enum SidebarKind { Divider, Group, Item }
+
+    private readonly struct SidebarEntry
     {
-        (null, new[] { "Packs" }),
-        (null, new[] { "Presets" }),
-        ("Reskins", new[] { "Players", "Pucks" }),
-        ("Effects", new[] { "Puck FX", "Skybox" }),
-        (null, new[] { "Arena" }),
-        (null, new[] { "Appearance" }),
-        // Personal display + performance settings (now stored in the QoL profile).
-        ("Display", new[] { "HUD", "Shadows", "Glossiness" }),
-        (null, new[] { "Quality of Life" }),
-        (null, new[] { "Extras" }),
-        (null, new[] { "About" }),
+        public readonly SidebarKind Kind;
+        public readonly string Label;   // bucket label / group header / section name
+        public readonly string[] Items; // child sections (Group only)
+
+        private SidebarEntry(SidebarKind kind, string label, string[] items)
+        {
+            Kind = kind; Label = label; Items = items;
+        }
+
+        public static SidebarEntry Divider(string label) => new(SidebarKind.Divider, label, null);
+        public static SidebarEntry Group(string label, params string[] items) => new(SidebarKind.Group, label, items);
+        public static SidebarEntry Item(string name) => new(SidebarKind.Item, name, null);
+    }
+
+    // Visual sidebar layout, top to bottom. Three buckets separated by labeled dividers:
+    // Appearance (your synced account look) on its own up top; the shareable reskin sections
+    // in the middle; personal/local QoL settings, then extras, below. Every section name
+    // referenced here must exist in `sections` above.
+    private static readonly SidebarEntry[] sidebarLayout =
+    {
+        SidebarEntry.Item("Appearance"),
+
+        SidebarEntry.Divider("Reskins"),
+        SidebarEntry.Group("Library", "Packs", "Presets"),
+        SidebarEntry.Group("Skins", "Players", "Pucks"),
+        SidebarEntry.Group("Environment", "Arena", "Skybox", "Puck FX"),
+
+        SidebarEntry.Divider("Display & Game"),
+        // Personal display + performance settings (stored in the QoL profile).
+        SidebarEntry.Group("Display", "HUD", "Shadows", "Glossiness"),
+        SidebarEntry.Item("Quality of Life"),
+
+        SidebarEntry.Divider("More"),
+        SidebarEntry.Item("Extras"),
+        SidebarEntry.Item("About"),
     };
 
     // Section name -> its sidebar button, so selection restyling works regardless of grouping.
@@ -246,22 +271,24 @@ public static class ReskinMenu
         sidebarScrollView.style.backgroundColor = new StyleColor(new Color(64f / 255f, 64f / 255f, 64f / 255f, 1));
         sidebarContainer.Add(sidebarScrollView);
         sectionButtons.Clear();
-        foreach (var (group, items) in sidebarLayout)
+        foreach (var entry in sidebarLayout)
         {
-            if (group == null)
+            switch (entry.Kind)
             {
-                foreach (var name in items)
-                    sidebarScrollView.Add(MakeSectionButton(name, 15));
-            }
-            else
-            {
-                var body = new VisualElement();
-                body.style.flexDirection = FlexDirection.Column;
+                case SidebarKind.Divider:
+                    sidebarScrollView.Add(MakeBucketDivider(entry.Label));
+                    break;
 
-                sidebarScrollView.Add(MakeGroupHeader(group, body));
-                foreach (var name in items)
-                    body.Add(MakeSectionButton(name, 30));
-                sidebarScrollView.Add(body);
+                case SidebarKind.Item:
+                    sidebarScrollView.Add(MakeSectionButton(entry.Label, 15));
+                    break;
+
+                case SidebarKind.Group:
+                    // Grouping now reads as a right-aligned tag on each row, so the buttons sit
+                    // flush (paddingLeft 15) like standalone items rather than indented under a heading.
+                    foreach (var name in entry.Items)
+                        sidebarScrollView.Add(MakeSectionButton(name, 15, entry.Label));
+                    break;
             }
         }
         
@@ -452,7 +479,9 @@ public static class ReskinMenu
         button.style.color = selected ? Color.black : Color.white;
     }
 
-    private static Button MakeSectionButton(string name, int paddingLeft)
+    // `tag`, when set, renders a quiet right-aligned label inside the button (e.g. "LIBRARY"
+    // on the Packs/Presets rows) so the sub-category reads per-row instead of as a heading.
+    private static Button MakeSectionButton(string name, int paddingLeft, string tag = null)
     {
         var button = new Button { name = $"{name}SidebarButton", text = name };
         button.style.width = new StyleLength(new Length(100, LengthUnit.Percent));
@@ -463,6 +492,24 @@ public static class ReskinMenu
         button.style.height = 50;
         button.style.unityTextAlign = TextAnchor.MiddleLeft;
         button.style.paddingLeft = paddingLeft;
+
+        if (tag != null)
+        {
+            // Absolutely positioned so it doesn't disturb the button's own left-aligned text.
+            // No explicit color: it inherits the button's text color (which flips on hover /
+            // selection), dimmed via opacity so it reads as a secondary tag in both states.
+            var tagLabel = new Label(tag.ToUpperInvariant());
+            tagLabel.style.position = Position.Absolute;
+            tagLabel.style.right = 20;
+            tagLabel.style.top = 0;
+            tagLabel.style.bottom = 0;
+            tagLabel.style.unityTextAlign = TextAnchor.MiddleRight;
+            tagLabel.style.fontSize = 10;
+            tagLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+            tagLabel.style.opacity = 0.4f;
+            tagLabel.pickingMode = PickingMode.Ignore;
+            button.Add(tagLabel);
+        }
 
         ApplySidebarButtonStyle(button, name == sections[selectedSectionIndex]);
 
@@ -479,33 +526,36 @@ public static class ReskinMenu
         return button;
     }
 
-    // Collapsible group header. Clicking toggles the body container's visibility.
-    private static Button MakeGroupHeader(string group, VisualElement body)
+    // Bucket separator: a darker full-width band with a left-aligned uppercase label and a
+    // trailing line. Non-interactive — it visually splits the sidebar into its major groups
+    // (Reskins / Display & Game / More). Label sits flush with the button text edge.
+    private static VisualElement MakeBucketDivider(string label)
     {
-        var header = new Button { text = $"▾  {group}" };
-        header.style.width = new StyleLength(new Length(100, LengthUnit.Percent));
-        header.style.minWidth = new StyleLength(new Length(100, LengthUnit.Percent));
-        header.style.maxWidth = new StyleLength(new Length(100, LengthUnit.Percent));
-        header.style.minHeight = 40;
-        header.style.maxHeight = 40;
-        header.style.height = 40;
-        header.style.unityTextAlign = TextAnchor.MiddleLeft;
-        header.style.unityFontStyleAndWeight = FontStyle.Bold;
-        header.style.paddingLeft = 12;
-        header.style.backgroundColor = new StyleColor(new Color(0.16f, 0.16f, 0.16f));
-        header.style.color = new Color(0.8f, 0.8f, 0.8f);
+        var row = new VisualElement();
+        row.style.flexDirection = FlexDirection.Row;
+        row.style.alignItems = Align.Center;
+        row.style.marginTop = 22;
+        row.style.paddingLeft = 15;
+        row.style.paddingRight = 12;
+        row.style.height = 35;
+        row.style.minHeight = 35;
+        row.style.maxHeight = 35;
+        row.style.backgroundColor = new StyleColor(new Color(0.14f, 0.14f, 0.14f));
+        row.pickingMode = PickingMode.Ignore;
 
-        bool expanded = true;
-        header.RegisterCallback<ClickEvent>(_ =>
-        {
-            expanded = !expanded;
-            body.style.display = expanded ? DisplayStyle.Flex : DisplayStyle.None;
-            header.text = (expanded ? "▾  " : "▸  ") + group;
-        });
+        var text = new Label(label.ToUpperInvariant());
+        text.style.fontSize = 13;
+        text.style.unityFontStyleAndWeight = FontStyle.Bold;
+        text.style.color = new Color(0.6f, 0.6f, 0.6f);
+        text.pickingMode = PickingMode.Ignore;
+        row.Add(text);
 
-        return header;
+        // Line dropped for now — the darker band carries the separation. (1px line rendered
+        // inconsistently, snapping to 2px on some dividers due to UIElements pixel rounding.)
+
+        return row;
     }
-    
+
     // Make it so that if Reskin menu is open, pressing Escape closes it
     [HarmonyPatch(typeof(UIManager), "OnPauseActionPerformed")]
     private static class UIManagerOnPauseActionPerformedPatch
