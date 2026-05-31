@@ -15,7 +15,6 @@ public static class PuckIndicatorSwapper
     private static VisualElement      _overlay;
     private static VisualElement      _arrow;       // the little triangle
     private static PuckIndicatorTicker _ticker;
-    private static Camera              _cam;
 
     // Smoothing history (previous-frame values for lerp)
     private static Vector2  _smoothPos;
@@ -23,6 +22,14 @@ public static class PuckIndicatorSwapper
     private static float    // current displayed opacity (lerps toward target)
                             _smoothAlpha;
     private static float    _targetAlpha;
+
+    // Cached style values to avoid redundant per-frame writes
+    private static float    _cachedSize = -1f;
+    private static Color    _cachedColor = new Color(-1, -1, -1, -1);
+
+    // Ticker error suppression (don't spam)
+    private static bool     _tickErrorLogged;
+
 
     // ── Public API ─────────────────────────────────────────────────────
 
@@ -74,7 +81,9 @@ public static class PuckIndicatorSwapper
             }
 
             _applied = false;
-            _cam     = null;
+            _cachedSize = -1f;
+            _cachedColor = new Color(-1, -1, -1, -1);
+            _tickErrorLogged = false;
         }
         catch (Exception ex)
         {
@@ -124,6 +133,11 @@ public static class PuckIndicatorSwapper
         _arrow.style.borderLeftWidth    = 0;
         _arrow.style.borderRightWidth   = 14;
 
+        // Seed caches to match initial style so first Tick doesn't
+        // redundantly write static border widths.
+        _cachedSize  = 20f;
+        _cachedColor = Color.white;
+
         _overlay.Add(_arrow);
         ui.RootVisualElement.Add(_overlay);
     }
@@ -143,6 +157,9 @@ public static class PuckIndicatorSwapper
 
     internal static void Tick()
     {
+        // Reset one-shot error flag so a new exception logs
+        _tickErrorLogged = false;
+
         if (!_applied || _overlay == null || _arrow == null) return;
 
         var profile = ReskinProfileManager.currentProfile;
@@ -151,9 +168,19 @@ public static class PuckIndicatorSwapper
             _overlay.style.display = DisplayStyle.None;
             return;
         }
+
+        // Re-validate overlay is still in the UI hierarchy. If the UI
+        // root was rebuilt (scene reload) the element will be detached.
+        if (_overlay.panel == null)
+        {
+            _applied = false;
+            BuildOverlay();
+            if (_overlay == null) return;
+        }
+
         _overlay.style.display = DisplayStyle.Flex;
 
-        // ── Camera ─────────────────────────────────────────────────────
+        // ── Camera (re-resolve every frame — handles respawn / spectate) ──
         Camera cam = FindCamera();
         if (cam == null) { FadeOut(); return; }
 
@@ -166,9 +193,9 @@ public static class PuckIndicatorSwapper
         Vector3 toPuck = (puckPos - cam.transform.position);
 
         // Project onto camera axes
-        float dotFwd  = Vector3.Dot(toPuck, cam.transform.forward);
+        float dotFwd   = Vector3.Dot(toPuck, cam.transform.forward);
         float dotRight = Vector3.Dot(toPuck, cam.transform.right);
-        float dotUp   = Vector3.Dot(toPuck, cam.transform.up);
+        float dotUp    = Vector3.Dot(toPuck, cam.transform.up);
 
         bool behindCam = dotFwd < 0f;
 
@@ -176,22 +203,26 @@ public static class PuckIndicatorSwapper
         // Using abs ensures behind-camera pucks map to the correct
         // screen edge (e.g. puck behind+right → arrow on right edge).
         float fwdAbs = Mathf.Abs(dotFwd);
-        // Guard against zero (puck exactly at camera position)
         if (fwdAbs < 0.0001f) fwdAbs = 0.0001f;
 
         float perspX = dotRight / fwdAbs;
         float perspY = dotUp   / fwdAbs;
 
-        // Normalise by half-FOV tangent so ±1 = screen edge.
-        float halfVFovTan = Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad);
-        float halfHFovTan = halfVFovTan * cam.aspect;
+        // Correct horizontal FOV: Unity's fieldOfView is vertical FOV.
+        // halfHFovTan = tan(atan(tan(vfov/2) * aspect))
+        // halfVFovTan = tan(vfov/2)
+        float vfov = cam.fieldOfView * Mathf.Deg2Rad;
+        float halfVFovTan = Mathf.Tan(vfov * 0.5f);
+        float halfHFovTan = Mathf.Tan(Mathf.Atan(halfVFovTan * cam.aspect));
 
         float nx = perspX / halfHFovTan;
         float ny = perspY / halfVFovTan;
 
-        // On-screen check (only for in-front pucks)
-        bool onScreen = !behindCam && Mathf.Abs(nx) < 1f && Mathf.Abs(ny) < 1f;
-        if (onScreen)
+        // ── On/off-screen check ──────────────────────────────────────────
+        // Puck is on-screen when it's in front of the camera and within
+        // the frustum.  nx/ny are normalised so ±1 = screen edge.
+        // A small dead-band (0.95) prevents flicker right at the boundary.
+        if (!behindCam && Mathf.Abs(nx) < 0.95f && Mathf.Abs(ny) < 0.95f)
         {
             FadeOut();
             return;
@@ -214,21 +245,17 @@ public static class PuckIndicatorSwapper
             float heightDelta = puckPos.y - cam.transform.position.y;
             if (heightDelta > 0f)
             {
-                // Puck above → arrow at top, pointing up
                 targetPos = new Vector2(centre.x, margin);
                 targetRot = -90f;
             }
             else
             {
-                // Puck below (or level) → arrow at bottom, pointing down
                 targetPos = new Vector2(centre.x, Screen.height - margin);
                 targetRot = 90f;
             }
         }
         else
         {
-            // Ray from centre toward puck, find where it hits the
-            // inset screen rectangle.
             float absX = Mathf.Abs(dir.x);
             float absY = Mathf.Abs(dir.y);
             float scale = Mathf.Max(absX, absY);
@@ -248,16 +275,14 @@ public static class PuckIndicatorSwapper
             targetPos.x = Mathf.Clamp(targetPos.x, margin, Screen.width  - margin);
             targetPos.y = Mathf.Clamp(targetPos.y, margin, Screen.height - margin);
 
-            // Arrow points from edge inward toward the puck
             targetRot = Mathf.Atan2(-ndir.y, -ndir.x) * Mathf.Rad2Deg;
         }
 
         // ── Smoothing ──────────────────────────────────────────────────
-        float lerpT = 1f - Mathf.Exp(-22f * Time.deltaTime); // ~93% in 100ms
+        float lerpT = 1f - Mathf.Exp(-22f * Time.deltaTime);
         _smoothPos.x = Mathf.Lerp(_smoothPos.x, targetPos.x, lerpT);
         _smoothPos.y = Mathf.Lerp(_smoothPos.y, targetPos.y, lerpT);
 
-        // Rotation lerp across 360° wrap
         float rotDiff = Mathf.DeltaAngle(_smoothRot, targetRot);
         _smoothRot = Mathf.LerpAngle(_smoothRot, _smoothRot + rotDiff, lerpT);
 
@@ -268,25 +293,37 @@ public static class PuckIndicatorSwapper
         float size    = profile.puckIndicatorArrowSize;
         Color baseCol = profile.puckIndicatorArrowColor;
         baseCol.a     = profile.puckIndicatorOpacity * _smoothAlpha;
+        float alpha   = baseCol.a;
 
         float halfW = size * 0.5f;
-        float halfH = size * 0.35f;   // make it slightly wider than tall
+        float halfH = size * 0.35f;
 
-        _arrow.style.left              = _smoothPos.x - halfH;
-        _arrow.style.top               = _smoothPos.y - halfW;
-        _arrow.style.width             = halfH;
-        _arrow.style.height            = size;
-        _arrow.style.rotate            = new Rotate(_smoothRot);
-        _arrow.style.borderRightColor  = new StyleColor(baseCol);
-        _arrow.style.borderTopWidth    = halfW;
-        _arrow.style.borderBottomWidth = halfW;
-        _arrow.style.borderLeftWidth   = 0;
-        _arrow.style.borderRightWidth  = halfH * 1.5f;
-        _arrow.style.display           = DisplayStyle.Flex;
+        // Always-writes: position, rotation, display (change every frame)
+        _arrow.style.left   = _smoothPos.x - halfH;
+        _arrow.style.top    = _smoothPos.y - halfW;
+        _arrow.style.rotate = new Rotate(_smoothRot);
+        _arrow.style.display = DisplayStyle.Flex;
 
-        // ── Elevation indicator ────────────────────────────────────────
-        // (hooked up separately if we add a label later — for now
-        //  the colour already adjusts via opacity.)
+        // Conditional writes: only touch style props when the value changed
+        if (!Mathf.Approximately(size, _cachedSize))
+        {
+            _cachedSize = size;
+            halfW = size * 0.5f;
+            halfH = size * 0.35f;
+            _arrow.style.left  = _smoothPos.x - halfH;  // recompute with new halfH
+            _arrow.style.width  = halfH;
+            _arrow.style.height = size;
+            _arrow.style.borderTopWidth    = halfW;
+            _arrow.style.borderBottomWidth = halfW;
+            _arrow.style.borderLeftWidth   = 0;
+            _arrow.style.borderRightWidth  = halfH * 1.5f;
+        }
+
+        if (baseCol != _cachedColor)
+        {
+            _cachedColor = baseCol;
+            _arrow.style.borderRightColor = new StyleColor(baseCol);
+        }
     }
 
     private static void FadeOut()
@@ -303,23 +340,21 @@ public static class PuckIndicatorSwapper
 
     /// <summary>
     /// Returns the camera component that belongs to the local gameplay
-    /// player.  Falls back to Camera.main.
+    /// player.  Re-resolves every call to handle respawn/spectate
+    /// transitions.  Falls back to Camera.main.
     /// </summary>
     private static Camera FindCamera()
     {
         try
         {
-            if (_cam != null && _cam.enabled) return _cam;
-
-            var lp = PlayerManager.Instance?.GetLocalPlayer();
+            var lp = MonoBehaviourSingleton<PlayerManager>.Instance?.GetLocalPlayer();
             if (lp != null && lp.gameObject != null)
             {
                 var c = lp.gameObject.GetComponentInChildren<Camera>(true);
-                if (c != null && c.enabled) { _cam = c; return c; }
+                if (c != null && c.enabled) return c;
             }
 
-            _cam = Camera.main;
-            return _cam;
+            return Camera.main;
         }
         catch { return null; }
     }
@@ -330,14 +365,8 @@ public static class PuckIndicatorSwapper
     {
         try
         {
-            if (PuckManager.Instance == null) return null;
-            var list = PuckManager.Instance.GetPucks();
-            if (list == null) return null;
-
-            foreach (var p in list)
-                if (p != null && p.gameObject != null && p.gameObject.activeInHierarchy)
-                    return p;
-            return null;
+            // Use the built-in which already excludes replay pucks
+            return MonoBehaviourSingleton<PuckManager>.Instance?.GetPuck();
         }
         catch { return null; }
     }
@@ -351,12 +380,17 @@ public static class PuckIndicatorSwapper
             try { Tick(); }
             catch (Exception ex)
             {
-                // Don't spam — only log once per session
-                if (_applied)
+                // Transient exception (e.g. scene/phase transition null).
+                // Hide the overlay so we don't leave a frozen arrow, but
+                // keep _applied true so we recover on the next frame.
+                if (!_tickErrorLogged)
                 {
-                    _applied = false;
-                    Plugin.LogError($"PuckIndicatorSwapper tick: {ex}");
+                    _tickErrorLogged = true;
+                    Plugin.LogError($"PuckIndicatorSwapper tick (suppressed): {ex}");
                 }
+                // Hide arrow immediately to prevent frozen artifact
+                if (_arrow != null)
+                    _arrow.style.display = DisplayStyle.None;
             }
         }
     }

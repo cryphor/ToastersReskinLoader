@@ -603,9 +603,6 @@ public static class ReskinProfileManager
                     ?? defaultProfile.puckIndicatorEdgeMargin,
                 puckIndicatorOpacity = serializableProfile.PuckIndicatorOpacity
                     ?? defaultProfile.puckIndicatorOpacity,
-                puckIndicatorShowElevation = serializableProfile.PuckIndicatorShowElevation
-                    ?? defaultProfile.puckIndicatorShowElevation,
-
                 // QoL lives in side-car files now; nothing to copy here.
 
                 // glossiness
@@ -847,8 +844,6 @@ public static class ReskinProfileManager
                 PuckIndicatorArrowSize = currentProfile.puckIndicatorArrowSize,
                 PuckIndicatorEdgeMargin = currentProfile.puckIndicatorEdgeMargin,
                 PuckIndicatorOpacity = currentProfile.puckIndicatorOpacity,
-                PuckIndicatorShowElevation = currentProfile.puckIndicatorShowElevation,
-
                 // QoL is persisted by QoLStorage; do not re-include it
                 // in the reskin profile so visual profiles stay shareable.
 
@@ -1089,8 +1084,6 @@ public static class ReskinProfileManager
         currentProfile.puckIndicatorArrowSize = defaultValues.puckIndicatorArrowSize;
         currentProfile.puckIndicatorEdgeMargin = defaultValues.puckIndicatorEdgeMargin;
         currentProfile.puckIndicatorOpacity = defaultValues.puckIndicatorOpacity;
-        currentProfile.puckIndicatorShowElevation = defaultValues.puckIndicatorShowElevation;
-
         SaveProfile();
 
         swappers.PuckIndicatorSwapper.ApplyAll();
@@ -1365,8 +1358,6 @@ public static class ReskinProfileManager
         public float puckIndicatorArrowSize = 30f;
         public float puckIndicatorEdgeMargin = 60f;
         public float puckIndicatorOpacity = 0.8f;
-        public bool puckIndicatorShowElevation = true;
-
         // QoL config lives in its own side-car files now (reskinprofiles/
         // QoL.json + ServerPrefs.json) so visual profiles stay shareable
         // without leaking toggles or per-server credentials. See QoLStorage.
@@ -1729,9 +1720,6 @@ public static class ReskinProfileManager
         public float? PuckIndicatorEdgeMargin { get; set; }
         [JsonProperty("puckIndicatorOpacity")]
         public float? PuckIndicatorOpacity { get; set; }
-        [JsonProperty("puckIndicatorShowElevation")]
-        public bool? PuckIndicatorShowElevation { get; set; }
-
         // QoL is persisted by QoLStorage (config/ToastersReskinLoaderQoL.json
         // + config/ToastersReskinLoaderServerPrefs.json). Do not add a
         // playerQoL property here — it would re-couple the visual reskin

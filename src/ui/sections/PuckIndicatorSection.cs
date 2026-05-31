@@ -55,9 +55,9 @@ public static class PuckIndicatorSection
         sizeSlider.RegisterCallback<ChangeEvent<float>>(evt =>
         {
             profile.puckIndicatorArrowSize = evt.newValue;
-            ReskinProfileManager.SaveProfile();
             PuckIndicatorSwapper.ApplyAll();
         });
+        sizeSlider.RegisterCallback<PointerUpEvent>(_ => ReskinProfileManager.SaveProfile());
         sizeRow.Add(sizeSlider);
         contentScrollViewContent.Add(sizeRow);
 
@@ -68,9 +68,9 @@ public static class PuckIndicatorSection
         marginSlider.RegisterCallback<ChangeEvent<float>>(evt =>
         {
             profile.puckIndicatorEdgeMargin = evt.newValue;
-            ReskinProfileManager.SaveProfile();
             PuckIndicatorSwapper.ApplyAll();
         });
+        marginSlider.RegisterCallback<PointerUpEvent>(_ => ReskinProfileManager.SaveProfile());
         marginRow.Add(marginSlider);
         contentScrollViewContent.Add(marginRow);
 
@@ -81,9 +81,9 @@ public static class PuckIndicatorSection
         opacitySlider.RegisterCallback<ChangeEvent<float>>(evt =>
         {
             profile.puckIndicatorOpacity = evt.newValue;
-            ReskinProfileManager.SaveProfile();
             PuckIndicatorSwapper.ApplyAll();
         });
+        opacitySlider.RegisterCallback<PointerUpEvent>(_ => ReskinProfileManager.SaveProfile());
         opacityRow.Add(opacitySlider);
         contentScrollViewContent.Add(opacityRow);
 
