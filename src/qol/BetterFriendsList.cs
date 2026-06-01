@@ -1159,12 +1159,11 @@ public static class FriendsListHelper
 /// </summary>
 public static class ServerNameFetcher
 {
-    private static Action<Dictionary<string, ServerPreviewData>> _callback;
-
     public static void FetchServerNames(Action<Dictionary<string, ServerPreviewData>> callback)
     {
-        _callback = callback;
-
+        // Capture the callback in the closures below rather than a shared static field, so two
+        // overlapping FetchServerNames calls (e.g. back-to-back refreshes) don't clobber each
+        // other's callback — each invocation keeps its own.
         var endpoints = new HashSet<string>();
         foreach (var kvp in FriendsListHelper.FriendInfoCache)
         {
@@ -1180,8 +1179,7 @@ public static class ServerNameFetcher
 
         if (endpoints.Count == 0)
         {
-            _callback?.Invoke(new Dictionary<string, ServerPreviewData>());
-            _callback = null;
+            callback?.Invoke(new Dictionary<string, ServerPreviewData>());
             return;
         }
 
@@ -1212,8 +1210,7 @@ public static class ServerNameFetcher
 
             BFLMainThreadDispatcher.Enqueue(() =>
             {
-                _callback?.Invoke(results);
-                _callback = null;
+                callback?.Invoke(results);
             });
         });
     }

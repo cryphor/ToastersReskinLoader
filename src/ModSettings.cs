@@ -60,8 +60,10 @@ public class ModSettings
 
     public static string GetConfigPath()
     {
-        string rootPath = Path.GetFullPath(".");
-        string configPath = Path.Combine(rootPath, "config", ConfigurationFileName);
+        // Use GameRootFolder (Application.dataPath/..) so the config lands next to the game
+        // regardless of the process working directory, which can differ under Steam/launchers.
+        // Every other config path in the mod (PuckFXMigrator, PresetStore, ...) resolves this way.
+        string configPath = Path.Combine(PathManager.GameRootFolder, "config", ConfigurationFileName);
         return configPath;
     }
 }
