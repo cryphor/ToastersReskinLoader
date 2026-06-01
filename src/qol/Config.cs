@@ -75,6 +75,11 @@ public class QoLConfig
     public bool enableVanillaUIRetheme = true;
     public bool enableEnhancedModMenu = true;
     public bool enableAutoConnectMatchmaking = false;
+    // Disable all connected game controllers (gamepads/joysticks) at the
+    // Input System level. Fixes the attached-controller cursor hijack where
+    // the first click on a menu button is eaten. Default off so controller
+    // players are unaffected. See DisableControllerInput.
+    public bool disableControllerInput = false;
 
     // Per-server "trust this mod list" memory. Keyed by "ip:port"; value
     // is the sorted, comma-joined list of mod IDs the user previously

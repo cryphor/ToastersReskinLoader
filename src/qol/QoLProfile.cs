@@ -81,6 +81,8 @@ public class QoLProfile
     public bool EnableEnhancedModMenu { get; set; } = true;
     [JsonProperty("enableAutoConnectMatchmaking")]
     public bool EnableAutoConnectMatchmaking { get; set; } = false;
+    [JsonProperty("disableControllerInput")]
+    public bool DisableControllerInput { get; set; } = false;
 
     // Persisted server browser filter values
     [JsonProperty("browserSearch")]
@@ -206,6 +208,7 @@ public class QoLProfile
             enableVanillaUIRetheme = EnableVanillaUIRetheme,
             enableEnhancedModMenu = EnableEnhancedModMenu,
             enableAutoConnectMatchmaking = EnableAutoConnectMatchmaking,
+            disableControllerInput = DisableControllerInput,
             browserSearch = BrowserSearch,
             browserMaxPing = BrowserMaxPing,
             browserShowFull = BrowserShowFull,
@@ -283,6 +286,7 @@ public class QoLProfile
         EnableVanillaUIRetheme = c.enableVanillaUIRetheme;
         EnableEnhancedModMenu = c.enableEnhancedModMenu;
         EnableAutoConnectMatchmaking = c.enableAutoConnectMatchmaking;
+        DisableControllerInput = c.disableControllerInput;
         BrowserSearch = c.browserSearch;
         BrowserMaxPing = c.browserMaxPing;
         BrowserShowFull = c.browserShowFull;

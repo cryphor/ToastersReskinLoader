@@ -181,6 +181,25 @@ public static class PlayerQoLSection
 
         */
 
+        // ── Input ──────────────────────────────────────────────────────────
+        Separator(contentScrollViewContent);
+        Header(contentScrollViewContent, "Input");
+        Note(contentScrollViewContent,
+            "Disable all connected game controllers (gamepads/joysticks). Use this if a plugged-in "
+            + "controller steals UI focus in menus so your first click on a button gets eaten. Applies "
+            + "immediately and to controllers connected later; turn it off to restore controller support. "
+            + "Note: if your controller's stick also drifts the mouse cursor, that's a Steam Input / "
+            + "DS4Windows stick-to-mouse mapping and must be turned off there — it arrives as real "
+            + "mouse movement this can't block.");
+
+        ToggleRow(contentScrollViewContent, "Disable controller / gamepad input", cfg.disableControllerInput,
+            v =>
+            {
+                cfg.disableControllerInput = v;
+                runner.SaveAndRefresh();
+                DisableControllerInput.Apply(v);
+            });
+
         // ── Additions (opt-in enhancements layered on top of vanilla) ──
         Separator(contentScrollViewContent);
         Header(contentScrollViewContent, "Additions");
