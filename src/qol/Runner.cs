@@ -30,6 +30,7 @@ public sealed class QoLRunner : MonoBehaviour
         UnityEngine.Object.DontDestroyOnLoad(go);
         var runner = go.AddComponent<QoLRunner>();
         try { DevConsole.AttachTo(go); } catch (Exception e) { Debug.LogError("[QoL] DevConsole attach failed: " + e); }
+        try { PositionSelectFreeLook.AttachTo(go); } catch (Exception e) { Debug.LogError("[QoL] PositionSelectFreeLook attach failed: " + e); }
         return runner;
     }
 
@@ -43,6 +44,8 @@ public sealed class QoLRunner : MonoBehaviour
     private void Awake()
     {
         _instance = this;
+        // DisplaySettingsMigration runs standalone earlier in Plugin.OnEnable (before the reskin
+        // profile can be re-saved), so it's intentionally not called here.
         try { ReloadFromProfile(); }
         catch (Exception e) { Debug.LogError("[QoL] ReloadFromProfile failed: " + e); }
         try { SavedServerPasswords.Initialize(); }

@@ -6,6 +6,7 @@
 
 using System;
 using System.Collections.Generic;
+using UnityEngine;
 
 namespace ToasterReskinLoader.qol;
 
@@ -74,6 +75,16 @@ public class QoLConfig
     public bool enableVanillaUIRetheme = true;
     public bool enableEnhancedModMenu = true;
     public bool enableAutoConnectMatchmaking = false;
+    // Disable all connected game controllers (gamepads/joysticks) at the
+    // Input System level. Fixes the attached-controller cursor hijack where
+    // the first click on a menu button is eaten. Default off so controller
+    // players are unaffected. See DisableControllerInput.
+    public bool disableControllerInput = false;
+    // Fly the position-select bench camera around like a spectator while you've
+    // joined a team but haven't claimed a position yet. Right-click toggles
+    // free-look. Purely client-local (see PositionSelectFreeLook). Default on;
+    // it only does anything once you right-click during position select.
+    public bool enablePositionSelectFreeLook = true;
 
     // Per-server "trust this mod list" memory. Keyed by "ip:port"; value
     // is the sorted, comma-joined list of mod IDs the user previously
@@ -117,4 +128,42 @@ public class QoLConfig
     public float devConsoleW = 900f;
     public float devConsoleH = 460f;
 
+    // ── Display settings (moved out of the reskin profile — personal/perf, not shared) ──
+    // Shadows (CrispyShadows). Defaults mirror the old reskin-profile defaults.
+    public bool  crispyShadowsEnabled = true;
+    public int   shadowResolution = 8192;
+    public float shadowDistance = 50f;
+    public int   shadowCascadeCount = 4;
+    public bool  shadowSoftShadows = true;
+
+    // Gloss remover.
+    public bool  glossRemoverEnabled = false;
+    public float glossSmoothness = 0.5f;
+    public bool  glossAffectSticks = true;
+    public bool  glossAffectPlayers = true;
+    public bool  glossAffectPucks = true;
+
+    // Minimap (HUD).
+    public Color blueMinimapNumberColor = Color.white;
+    public Color redMinimapNumberColor = Color.white;
+    public Color minimapPuckColor = new Color(0f, 0f, 0f, 1f);
+    public float minimapPlayerScale = 1f;
+    public float minimapPuckScale = 1f;
+    public int   minimapRefreshRate = 60;
+    public bool  localPlayerMinimapIconEnabled = false;
+    public Color blueLocalPlayerMinimapIconColor = new Color(0f, 1f, 0f, 1f);
+    public Color redLocalPlayerMinimapIconColor = new Color(0f, 1f, 0f, 1f);
+
+    // Team indicator (on-ice colored bar showing your team).
+    public bool teamIndicatorEnabled = false;
+
+    // Chat (HUD).
+    public float chatHeight = 300f;
+    public bool  chatBackground = false;
+    public float quickChatX = 0f;
+    public float quickChatY = 50f;
+    public bool  chatRenderAllEmojis = true;
+
+    // One-time marker: display settings have been seeded from a pre-existing reskin profile.
+    public bool displaySettingsMigrated = false;
 }
