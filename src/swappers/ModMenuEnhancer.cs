@@ -1820,6 +1820,11 @@ namespace ToasterReskinLoader.swappers
                 if (ok)
                 {
                     MarkModListChanged();
+                    // The download rewrote the mod's folder on disk, so the per-path size and
+                    // per-dll compatibility caches are now stale. Drop them so the rebuilt rows
+                    // re-read disk instead of showing the pre-update size/outdated flag.
+                    sizeCache.Clear();
+                    outdatedDllCache.Clear();
                     string title = GetTitleForId(itemId) ?? $"mod {itemId}";
                     // Re-query so the local timestamp updates and the button flips
                     // to "Up to date".
