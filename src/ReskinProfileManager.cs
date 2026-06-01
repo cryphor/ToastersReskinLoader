@@ -4,7 +4,10 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using Newtonsoft.Json.Serialization;
 using ToasterReskinLoader.presets;
 using ToasterReskinLoader.swappers;
 using UnityEngine;
@@ -236,7 +239,7 @@ public static class ReskinProfileManager
             Plugin.LogError($"Local reskin profiles folder not found: {profilesFolder}, creating it...");
             Directory.CreateDirectory(profilesFolder);
         }
-        
+
         if (!File.Exists(ProfilePath))
         {
             Plugin.Log("No reskin profile found. Creating a default profile.");
@@ -244,317 +247,29 @@ public static class ReskinProfileManager
             SaveProfile(); // Save the new default profile
             return;
         }
-        
-        // Create a new profile instance that holds all the correct default values.
-        // This is our safety net.
-        var defaultProfile = new Profile();
-        
+
         try
         {
             Plugin.Log($"Loading reskin profile from: {ProfilePath}");
             string json = File.ReadAllText(ProfilePath);
-            var serializableProfile =
-                JsonConvert.DeserializeObject<SerializableProfile>(json);
 
-            // If the JSON file is empty or invalid, serializableProfile could be null.
-            if (serializableProfile == null)
+            // One-time safety backup of the pre-existing file before the new serializer ever
+            // rewrites it, so an upgrade can always be rolled back by hand.
+            WriteOneTimeBackup(json);
+
+            // The Profile class is now the on-disk shape (see ProfileContractResolver); fields
+            // absent from the JSON keep their initializer defaults, replacing the old per-field
+            // "?? defaultProfile.x" hydration.
+            var loaded = JsonConvert.DeserializeObject<Profile>(json, ProfileSerializerSettings);
+            if (loaded == null)
             {
-                Plugin.LogError(
-                    "Failed to deserialize profile (file might be empty or corrupt). Loading default profile."
-                );
-                currentProfile = defaultProfile;
+                Plugin.LogError("Failed to deserialize profile (file might be empty or corrupt). Loading default profile.");
+                currentProfile = new Profile();
                 return;
             }
 
-            Plugin.Log($"Deserialized {ProfilePath}, loading values...");
-            // "Hydrate" the profile: convert references back to live ReskinEntry objects
-            currentProfile = new Profile
-            {
-                // Sticks
-                stickAttackerBluePersonal = FindEntryFromReference(serializableProfile?.StickAttackerBluePersonalRef, "stick_attacker"),
-                stickAttackerRedPersonal = FindEntryFromReference(serializableProfile?.StickAttackerRedPersonalRef, "stick_attacker"),
-                stickAttackerBlue = FindEntryFromReference(serializableProfile?.StickAttackerBlueRef, "stick_attacker"),
-                stickAttackerRed = FindEntryFromReference(serializableProfile?.StickAttackerRedRef, "stick_attacker"),
-                stickGoalieBluePersonal = FindEntryFromReference(serializableProfile?.StickGoalieBluePersonalRef, "stick_goalie"),
-                stickGoalieRedPersonal = FindEntryFromReference(serializableProfile?.StickGoalieRedPersonalRef, "stick_goalie"),
-                stickGoalieBlue = FindEntryFromReference(serializableProfile?.StickGoalieBlueRef, "stick_goalie"),
-                stickGoalieRed = FindEntryFromReference(serializableProfile?.StickGoalieRedRef, "stick_goalie"),
-                
-                // Jerseys
-                blueSkaterTorso = FindEntryFromReference(serializableProfile?.BlueSkaterTorsoRef, "jersey_torso"),
-                blueSkaterGroin = FindEntryFromReference(serializableProfile?.BlueSkaterGroinRef, "jersey_groin"),
-                blueGoalieTorso = FindEntryFromReference(serializableProfile?.BlueGoalieTorsoRef, "jersey_torso"),
-                blueGoalieGroin = FindEntryFromReference(serializableProfile?.BlueGoalieGroinRef, "jersey_groin"),
-                redSkaterTorso = FindEntryFromReference(serializableProfile?.RedSkaterTorsoRef, "jersey_torso"),
-                redSkaterGroin = FindEntryFromReference(serializableProfile?.RedSkaterGroinRef, "jersey_groin"),
-                redGoalieTorso = FindEntryFromReference(serializableProfile?.RedGoalieTorsoRef, "jersey_torso"),
-                redGoalieGroin = FindEntryFromReference(serializableProfile?.RedGoalieGroinRef, "jersey_groin"),
-                
-                blueLegPadLeft = FindEntryFromReference(serializableProfile?.BlueLegPadLeftRef, "legpad"),
-                blueLegPadRight = FindEntryFromReference(serializableProfile?.BlueLegPadRightRef, "legpad"),
-                redLegPadLeft = FindEntryFromReference(serializableProfile?.RedLegPadLeftRef, "legpad"),
-                redLegPadRight = FindEntryFromReference(serializableProfile?.RedLegPadRightRef, "legpad"),
-                blueLegPadDefaultColor = serializableProfile.BlueLegPadDefaultColor != null
-                    ? (Color)serializableProfile.BlueLegPadDefaultColor
-                    : defaultProfile.blueLegPadDefaultColor,
-                redLegPadDefaultColor = serializableProfile.RedLegPadDefaultColor != null
-                    ? (Color)serializableProfile.RedLegPadDefaultColor
-                    : defaultProfile.redLegPadDefaultColor,
-                blueGoalieHelmet = FindEntryFromReference(serializableProfile?.BlueGoalieHelmetRef, "helmet"),
-                redGoalieHelmet = FindEntryFromReference(serializableProfile?.RedGoalieHelmetRef, "helmet"),
-                blueGoalieHelmetColor = serializableProfile.BlueGoalieHelmetColor != null
-                    ? (Color)serializableProfile.BlueGoalieHelmetColor
-                    : defaultProfile.blueGoalieHelmetColor,
-                redGoalieHelmetColor = serializableProfile.RedGoalieHelmetColor != null
-                    ? (Color)serializableProfile.RedGoalieHelmetColor
-                    : defaultProfile.redGoalieHelmetColor,
-                blueGoalieMask = FindEntryFromReference(serializableProfile?.BlueGoalieMaskRef, "goalie_mask"),
-                redGoalieMask = FindEntryFromReference(serializableProfile?.RedGoalieMaskRef, "goalie_mask"),
-                blueGoalieMaskColor = serializableProfile.BlueGoalieMaskColor != null
-                    ? (Color)serializableProfile.BlueGoalieMaskColor
-                    : defaultProfile.blueGoalieMaskColor,
-                redGoalieMaskColor = serializableProfile.RedGoalieMaskColor != null
-                    ? (Color)serializableProfile.RedGoalieMaskColor
-                    : defaultProfile.redGoalieMaskColor,
-                blueGoalieCageColor = serializableProfile.BlueGoalieCageColor != null
-                    ? (Color)serializableProfile.BlueGoalieCageColor
-                    : defaultProfile.blueGoalieCageColor,
-                redGoalieCageColor = serializableProfile.RedGoalieCageColor != null
-                    ? (Color)serializableProfile.RedGoalieCageColor
-                    : defaultProfile.redGoalieCageColor,
-                blueSkaterHelmet = FindEntryFromReference(serializableProfile?.BlueSkaterHelmetRef, "helmet"),
-                redSkaterHelmet = FindEntryFromReference(serializableProfile?.RedSkaterHelmetRef, "helmet"),
-                blueSkaterHelmetColor = serializableProfile.BlueSkaterHelmetColor != null
-                    ? (Color)serializableProfile.BlueSkaterHelmetColor
-                    : defaultProfile.blueSkaterHelmetColor,
-                redSkaterHelmetColor = serializableProfile.RedSkaterHelmetColor != null
-                    ? (Color)serializableProfile.RedSkaterHelmetColor
-                    : defaultProfile.redSkaterHelmetColor,
-                blueSkaterLetteringColor = serializableProfile.BlueSkaterLetteringColor != null
-                    ? (Color)serializableProfile.BlueSkaterLetteringColor
-                    : defaultProfile.blueSkaterLetteringColor,
-                redSkaterLetteringColor = serializableProfile.RedSkaterLetteringColor != null
-                    ? (Color)serializableProfile.RedSkaterLetteringColor
-                    : defaultProfile.redSkaterLetteringColor,
-                blueGoalieLetteringColor = serializableProfile.BlueGoalieLetteringColor != null
-                    ? (Color)serializableProfile.BlueGoalieLetteringColor
-                    : defaultProfile.blueGoalieLetteringColor,
-                redGoalieLetteringColor = serializableProfile.RedGoalieLetteringColor != null
-                    ? (Color)serializableProfile.RedGoalieLetteringColor
-                    : defaultProfile.redGoalieLetteringColor,
-                blueSkaterNumberOutlineColor = serializableProfile.BlueSkaterNumberOutlineColor != null
-                    ? (Color)serializableProfile.BlueSkaterNumberOutlineColor
-                    : defaultProfile.blueSkaterNumberOutlineColor,
-                redSkaterNumberOutlineColor = serializableProfile.RedSkaterNumberOutlineColor != null
-                    ? (Color)serializableProfile.RedSkaterNumberOutlineColor
-                    : defaultProfile.redSkaterNumberOutlineColor,
-                blueGoalieNumberOutlineColor = serializableProfile.BlueGoalieNumberOutlineColor != null
-                    ? (Color)serializableProfile.BlueGoalieNumberOutlineColor
-                    : defaultProfile.blueGoalieNumberOutlineColor,
-                redGoalieNumberOutlineColor = serializableProfile.RedGoalieNumberOutlineColor != null
-                    ? (Color)serializableProfile.RedGoalieNumberOutlineColor
-                    : defaultProfile.redGoalieNumberOutlineColor,
-                blueSkaterNumberOutlineWidth = serializableProfile.BlueSkaterNumberOutlineWidth
-                    ?? defaultProfile.blueSkaterNumberOutlineWidth,
-                redSkaterNumberOutlineWidth = serializableProfile.RedSkaterNumberOutlineWidth
-                    ?? defaultProfile.redSkaterNumberOutlineWidth,
-                blueGoalieNumberOutlineWidth = serializableProfile.BlueGoalieNumberOutlineWidth
-                    ?? defaultProfile.blueGoalieNumberOutlineWidth,
-                redGoalieNumberOutlineWidth = serializableProfile.RedGoalieNumberOutlineWidth
-                    ?? defaultProfile.redGoalieNumberOutlineWidth,
-                // Puck
-                puck = FindEntryFromReference(serializableProfile?.PuckRef, "puck"),
-                puckList = LoadPuckList(serializableProfile),
-
-                // Arena
-                // Use the ?? (null-coalescing) operator. If the loaded value is null, use the default.
-                fullArenaEnabled = serializableProfile.FullArenaEnabled 
-                    ?? defaultProfile.fullArenaEnabled,
-                fullArenaBundle = serializableProfile.FullArenaBundle 
-                    ?? defaultProfile.fullArenaBundle,
-                fullArenaPrefab = serializableProfile.FullArenaPrefab 
-                    ?? defaultProfile.fullArenaPrefab,
-                fullArenaWorkshopId = serializableProfile.FullArenaWorkshopId 
-                    ?? defaultProfile.fullArenaWorkshopId,
-                crowdEnabled = serializableProfile.CrowdEnabled
-                    ?? defaultProfile.crowdEnabled,
-                hangarEnabled = serializableProfile.HangarEnabled
-                    ?? defaultProfile.hangarEnabled,
-                glassEnabled = serializableProfile.GlassEnabled
-                                ?? defaultProfile.glassEnabled,
-                scoreboardEnabled = serializableProfile.ScoreboardEnabled
-                                ?? defaultProfile.scoreboardEnabled,
-                ice = FindEntryFromReference(serializableProfile.IceRef, "rink_ice"),
-                iceSmoothness = serializableProfile.IceSmoothness
-                    ?? defaultProfile.iceSmoothness,
-
-                // For colors, we check if the SerializableColor object is null.
-                boardsBorderTopColor =
-                    serializableProfile.BoardsBorderTopColor != null
-                        ? (Color)serializableProfile.BoardsBorderTopColor
-                        : defaultProfile.boardsBorderTopColor,
-                boardsMiddleColor =
-                    serializableProfile.BoardsMiddleColor != null
-                        ? (Color)serializableProfile.BoardsMiddleColor
-                        : defaultProfile.boardsMiddleColor,
-                boardsBorderBottomColor =
-                    serializableProfile.BoardsBorderBottomColor != null
-                        ? (Color)serializableProfile.BoardsBorderBottomColor
-                        : defaultProfile.boardsBorderBottomColor,
-                glassSmoothness = serializableProfile.GlassSmoothness ?? defaultProfile.glassSmoothness,
-                pillarsColor = serializableProfile.PillarsColor != null
-                    ? (Color)serializableProfile.PillarsColor
-                    : defaultProfile.pillarsColor,
-                spectatorDensity =  serializableProfile.SpectatorDensity ?? defaultProfile.spectatorDensity,
-                net = FindEntryFromReference(serializableProfile?.NetRef, "net"),
-
-                // Stick Tape
-                blueSkaterBladeTapeMode = serializableProfile.BlueSkaterBladeTapeMode ?? defaultProfile.blueSkaterBladeTapeMode,
-                blueSkaterBladeTape = FindEntryFromReference(serializableProfile?.BlueSkaterBladeTapeRef, "tape_attacker_blade"),
-                blueSkaterBladeTapeColor = serializableProfile.BlueSkaterBladeTapeColor != null
-                    ? (Color)serializableProfile.BlueSkaterBladeTapeColor
-                    : defaultProfile.blueSkaterBladeTapeColor,
-
-                blueSkaterShaftTapeMode = serializableProfile.BlueSkaterShaftTapeMode ?? defaultProfile.blueSkaterShaftTapeMode,
-                blueSkaterShaftTape = FindEntryFromReference(serializableProfile?.BlueSkaterShaftTapeRef, "tape_attacker_shaft"),
-                blueSkaterShaftTapeColor = serializableProfile.BlueSkaterShaftTapeColor != null
-                    ? (Color)serializableProfile.BlueSkaterShaftTapeColor
-                    : defaultProfile.blueSkaterShaftTapeColor,
-
-                blueGoalieBladeTapeMode = serializableProfile.BlueGoalieBladeTapeMode ?? defaultProfile.blueGoalieBladeTapeMode,
-                blueGoalieBladeTape = FindEntryFromReference(serializableProfile?.BlueGoalieBladeTapeRef, "tape_goalie_blade"),
-                blueGoalieBladeTapeColor = serializableProfile.BlueGoalieBladeTapeColor != null
-                    ? (Color)serializableProfile.BlueGoalieBladeTapeColor
-                    : defaultProfile.blueGoalieBladeTapeColor,
-
-                blueGoalieShaftTapeMode = serializableProfile.BlueGoalieShaftTapeMode ?? defaultProfile.blueGoalieShaftTapeMode,
-                blueGoalieShaftTape = FindEntryFromReference(serializableProfile?.BlueGoalieShaftTapeRef, "tape_goalie_shaft"),
-                blueGoalieShaftTapeColor = serializableProfile.BlueGoalieShaftTapeColor != null
-                    ? (Color)serializableProfile.BlueGoalieShaftTapeColor
-                    : defaultProfile.blueGoalieShaftTapeColor,
-
-                redSkaterBladeTapeMode = serializableProfile.RedSkaterBladeTapeMode ?? defaultProfile.redSkaterBladeTapeMode,
-                redSkaterBladeTape = FindEntryFromReference(serializableProfile?.RedSkaterBladeTapeRef, "tape_attacker_blade"),
-                redSkaterBladeTapeColor = serializableProfile.RedSkaterBladeTapeColor != null
-                    ? (Color)serializableProfile.RedSkaterBladeTapeColor
-                    : defaultProfile.redSkaterBladeTapeColor,
-
-                redSkaterShaftTapeMode = serializableProfile.RedSkaterShaftTapeMode ?? defaultProfile.redSkaterShaftTapeMode,
-                redSkaterShaftTape = FindEntryFromReference(serializableProfile?.RedSkaterShaftTapeRef, "tape_attacker_shaft"),
-                redSkaterShaftTapeColor = serializableProfile.RedSkaterShaftTapeColor != null
-                    ? (Color)serializableProfile.RedSkaterShaftTapeColor
-                    : defaultProfile.redSkaterShaftTapeColor,
-
-                redGoalieBladeTapeMode = serializableProfile.RedGoalieBladeTapeMode ?? defaultProfile.redGoalieBladeTapeMode,
-                redGoalieBladeTape = FindEntryFromReference(serializableProfile?.RedGoalieBladeTapeRef, "tape_goalie_blade"),
-                redGoalieBladeTapeColor = serializableProfile.RedGoalieBladeTapeColor != null
-                    ? (Color)serializableProfile.RedGoalieBladeTapeColor
-                    : defaultProfile.redGoalieBladeTapeColor,
-
-                redGoalieShaftTapeMode = serializableProfile.RedGoalieShaftTapeMode ?? defaultProfile.redGoalieShaftTapeMode,
-                redGoalieShaftTape = FindEntryFromReference(serializableProfile?.RedGoalieShaftTapeRef, "tape_goalie_shaft"),
-                redGoalieShaftTapeColor = serializableProfile.RedGoalieShaftTapeColor != null
-                    ? (Color)serializableProfile.RedGoalieShaftTapeColor
-                    : defaultProfile.redGoalieShaftTapeColor,
-
-                // Team Colors
-                // Per-team enable; migrate the legacy single toggle to both sides.
-                blueTeamColorEnabled = serializableProfile.BlueTeamColorEnabled
-                    ?? serializableProfile.TeamColorsEnabled
-                    ?? defaultProfile.blueTeamColorEnabled,
-                redTeamColorEnabled = serializableProfile.RedTeamColorEnabled
-                    ?? serializableProfile.TeamColorsEnabled
-                    ?? defaultProfile.redTeamColorEnabled,
-                blueTeamColor = serializableProfile.BlueTeamColor != null
-                    ? (Color)serializableProfile.BlueTeamColor
-                    : defaultProfile.blueTeamColor,
-                redTeamColor = serializableProfile.RedTeamColor != null
-                    ? (Color)serializableProfile.RedTeamColor
-                    : defaultProfile.redTeamColor,
-                // teamIndicatorEnabled moved to the QoL profile — see QoLConfig.
-                blueTeamName = serializableProfile.BlueTeamName
-                    ?? defaultProfile.blueTeamName,
-                redTeamName = serializableProfile.RedTeamName
-                    ?? defaultProfile.redTeamName,
-
-                // Minimap moved to the QoL profile (HUD) — see QoLConfig.
-
-                // Chat moved to the QoL profile (HUD) — see QoLConfig.
-
-                // Skybox
-                skyboxAtmosphereThickness =
-                    serializableProfile.SkyboxAtmosphereThickness
-                    ?? defaultProfile.skyboxAtmosphereThickness,
-                skyboxExposure = serializableProfile.SkyboxExposure
-                    ?? defaultProfile.skyboxExposure,
-                skyboxSunDisk = serializableProfile.SkyboxSunDisk
-                    ?? defaultProfile.skyboxSunDisk,
-                skyboxSunSize = serializableProfile.SkyboxSunSize
-                    ?? defaultProfile.skyboxSunSize,
-                skyboxSunSizeConvergence =
-                    serializableProfile.SkyboxSunSizeConvergence
-                    ?? defaultProfile.skyboxSunSizeConvergence,
-                skyboxGroundColor =
-                    serializableProfile.SkyboxGroundColor != null
-                        ? (Color)serializableProfile.SkyboxGroundColor
-                        : defaultProfile.skyboxGroundColor,
-                skyboxSkyTint =
-                    serializableProfile.SkyboxSkyTint != null
-                        ? (Color)serializableProfile.SkyboxSkyTint
-                        : defaultProfile.skyboxSkyTint,
-
-                // Puck FX
-                puckFXOutlineColor =
-                    serializableProfile.PuckFXOutlineColor != null
-                        ? (Color)serializableProfile.PuckFXOutlineColor
-                        : defaultProfile.puckFXOutlineColor,
-                puckFXOutlineKernelSize =
-                    serializableProfile.PuckFXOutlineKernelSize
-                    ?? defaultProfile.puckFXOutlineKernelSize,
-                puckFXElevationIndicatorColor =
-                    serializableProfile.PuckFXElevationIndicatorColor != null
-                        ? (Color)serializableProfile.PuckFXElevationIndicatorColor
-                        : defaultProfile.puckFXElevationIndicatorColor,
-                puckFXVerticalityLineColor =
-                    serializableProfile.PuckFXVerticalityLineColor != null
-                        ? (Color)serializableProfile.PuckFXVerticalityLineColor
-                        : defaultProfile.puckFXVerticalityLineColor,
-                puckFXVerticalityLineStartAlpha =
-                    serializableProfile.PuckFXVerticalityLineStartAlpha
-                    ?? defaultProfile.puckFXVerticalityLineStartAlpha,
-                puckFXVerticalityLineEndAlpha =
-                    serializableProfile.PuckFXVerticalityLineEndAlpha
-                    ?? defaultProfile.puckFXVerticalityLineEndAlpha,
-                puckFXTrailEnabled =
-                    serializableProfile.PuckFXTrailEnabled
-                    ?? defaultProfile.puckFXTrailEnabled,
-                puckFXTrailColor =
-                    serializableProfile.PuckFXTrailColor != null
-                        ? (Color)serializableProfile.PuckFXTrailColor
-                        : defaultProfile.puckFXTrailColor,
-                puckFXTrailStartWidth =
-                    serializableProfile.PuckFXTrailStartWidth
-                    ?? defaultProfile.puckFXTrailStartWidth,
-                puckFXTrailEndWidth =
-                    serializableProfile.PuckFXTrailEndWidth
-                    ?? defaultProfile.puckFXTrailEndWidth,
-                puckFXTrailLifetime =
-                    serializableProfile.PuckFXTrailLifetime
-                    ?? defaultProfile.puckFXTrailLifetime,
-                puckFXTrailStartAlpha =
-                    serializableProfile.PuckFXTrailStartAlpha
-                    ?? defaultProfile.puckFXTrailStartAlpha,
-                puckFXTrailEndAlpha =
-                    serializableProfile.PuckFXTrailEndAlpha
-                    ?? defaultProfile.puckFXTrailEndAlpha,
-                puckFXSilhouetteColor = serializableProfile.PuckFXSilhouetteColor != null
-                    ? (Color)serializableProfile.PuckFXSilhouetteColor
-                    : defaultProfile.puckFXSilhouetteColor,
-
-                // QoL lives in side-car files now; nothing to copy here.
-                // Gloss moved to the QoL profile (personal/perf) — see QoLConfig.
-            };
-
+            ApplyLegacyMigrations(loaded, json);
+            currentProfile = loaded;
             Plugin.Log("Reskin profile loaded successfully.");
         }
         catch (Exception ex)
@@ -565,208 +280,62 @@ public static class ReskinProfileManager
     }
 
     /// <summary>
-    /// Loads the puck list from serializable profile, with backwards compatibility migration.
-    /// If the new puckListRef exists, use it. Otherwise, migrate the old single puck entry.
+    /// Writes a one-time .bak copy of the existing profile JSON the first time the new
+    /// serializer runs, so the pre-upgrade file is always recoverable.
     /// </summary>
-    private static List<ReskinRegistry.ReskinEntry> LoadPuckList(SerializableProfile serializableProfile)
+    private static void WriteOneTimeBackup(string json)
     {
-        var puckList = new List<ReskinRegistry.ReskinEntry>();
-
-        // If new puckListRef exists, load from it
-        if (serializableProfile?.PuckListRef != null && serializableProfile.PuckListRef.Count > 0)
+        try
         {
-            foreach (var puckRef in serializableProfile.PuckListRef)
+            string backupPath = ProfilePath + ".bak";
+            if (!File.Exists(backupPath))
             {
-                if (puckRef?.PackId == DefaultPuckPackId)
-                {
-                    puckList.Add(CreateDefaultPuckEntry());
-                    continue;
-                }
-
-                var entry = FindEntryFromReference(puckRef, "puck");
-                if (entry != null)
-                {
-                    puckList.Add(entry);
-                }
+                File.WriteAllText(backupPath, json);
+                Plugin.Log($"Wrote one-time profile backup: {backupPath}");
             }
         }
-        // Else if old single puck entry exists, migrate it to the list
-        else if (serializableProfile?.PuckRef != null)
+        catch (Exception ex)
         {
-            var oldPuck = FindEntryFromReference(serializableProfile.PuckRef, "puck");
-            if (oldPuck != null)
-            {
-                puckList.Add(oldPuck);
-                Plugin.Log("Migrated old single puck entry to new puck randomizer list");
-            }
+            Plugin.LogWarning($"Could not write profile backup: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Applies backward-compatibility migrations that aren't a simple field rename, reading the
+    /// raw JSON for legacy keys the current Profile no longer declares.
+    /// </summary>
+    private static void ApplyLegacyMigrations(Profile profile, string rawJson)
+    {
+        JObject root;
+        try { root = JObject.Parse(rawJson); }
+        catch { return; }
+
+        // Legacy single "teamColorsEnabled" toggle -> per-team flags. Only applied when the
+        // per-team key was absent from the file (an explicit per-team value always wins).
+        var legacyTeamColors = root["teamColorsEnabled"];
+        if (legacyTeamColors != null && legacyTeamColors.Type == JTokenType.Boolean)
+        {
+            bool legacy = legacyTeamColors.Value<bool>();
+            if (root["blueTeamColorEnabled"] == null) profile.blueTeamColorEnabled = legacy;
+            if (root["redTeamColorEnabled"] == null) profile.redTeamColorEnabled = legacy;
         }
 
-        return puckList;
+        // Legacy single puck -> randomizer list. The puck-list converter already populated
+        // puckList from puckListRef; migrate the old single puckRef only when there was no list.
+        bool hadPuckList = root["puckListRef"] is JArray arr && arr.Count > 0;
+        if (!hadPuckList && profile.puck != null)
+        {
+            profile.puckList = new List<ReskinRegistry.ReskinEntry> { profile.puck };
+            Plugin.Log("Migrated old single puck entry to new puck randomizer list");
+        }
     }
 
     public static void SaveProfile()
     {
         try
         {
-            // Convert the live profile into its serializable representation
-            var serializableProfile = new SerializableProfile
-            {
-                // Sticks
-                StickAttackerBluePersonalRef = CreateReferenceFromEntry(currentProfile.stickAttackerBluePersonal),
-                StickAttackerRedPersonalRef = CreateReferenceFromEntry(currentProfile.stickAttackerRedPersonal),
-                StickAttackerBlueRef = CreateReferenceFromEntry(currentProfile.stickAttackerBlue),
-                StickAttackerRedRef = CreateReferenceFromEntry(currentProfile.stickAttackerRed),
-                StickGoalieBluePersonalRef = CreateReferenceFromEntry(currentProfile.stickGoalieBluePersonal),
-                StickGoalieRedPersonalRef = CreateReferenceFromEntry(currentProfile.stickGoalieRedPersonal),
-                StickGoalieBlueRef = CreateReferenceFromEntry(currentProfile.stickGoalieBlue),
-                StickGoalieRedRef = CreateReferenceFromEntry(currentProfile.stickGoalieRed),
-                
-                // Jerseys
-                BlueSkaterTorsoRef = CreateReferenceFromEntry(currentProfile.blueSkaterTorso),
-                BlueSkaterGroinRef = CreateReferenceFromEntry(currentProfile.blueSkaterGroin),
-                BlueGoalieTorsoRef = CreateReferenceFromEntry(currentProfile.blueGoalieTorso),
-                BlueGoalieGroinRef = CreateReferenceFromEntry(currentProfile.blueGoalieGroin),
-                RedSkaterTorsoRef = CreateReferenceFromEntry(currentProfile.redSkaterTorso),
-                RedSkaterGroinRef = CreateReferenceFromEntry(currentProfile.redSkaterGroin),
-                RedGoalieTorsoRef = CreateReferenceFromEntry(currentProfile.redGoalieTorso),
-                RedGoalieGroinRef = CreateReferenceFromEntry(currentProfile.redGoalieGroin),
-                
-                // Goalie pads and helmet
-                BlueLegPadLeftRef = CreateReferenceFromEntry(currentProfile.blueLegPadLeft),
-                BlueLegPadRightRef = CreateReferenceFromEntry(currentProfile.blueLegPadRight),
-                RedLegPadLeftRef = CreateReferenceFromEntry(currentProfile.redLegPadLeft),
-                RedLegPadRightRef = CreateReferenceFromEntry(currentProfile.redLegPadRight),
-                BlueLegPadDefaultColor = new SerializableColor(currentProfile.blueLegPadDefaultColor),
-                RedLegPadDefaultColor = new SerializableColor(currentProfile.redLegPadDefaultColor),
-                BlueGoalieHelmetRef = CreateReferenceFromEntry(currentProfile.blueGoalieHelmet),
-                RedGoalieHelmetRef = CreateReferenceFromEntry(currentProfile.redGoalieHelmet),
-                BlueGoalieHelmetColor = new SerializableColor(currentProfile.blueGoalieHelmetColor),
-                RedGoalieHelmetColor = new SerializableColor(currentProfile.redGoalieHelmetColor),
-                BlueGoalieMaskRef = CreateReferenceFromEntry(currentProfile.blueGoalieMask),
-                RedGoalieMaskRef = CreateReferenceFromEntry(currentProfile.redGoalieMask),
-                BlueGoalieMaskColor = new SerializableColor(currentProfile.blueGoalieMaskColor),
-                RedGoalieMaskColor = new SerializableColor(currentProfile.redGoalieMaskColor),
-                BlueGoalieCageColor = new SerializableColor(currentProfile.blueGoalieCageColor),
-                RedGoalieCageColor = new SerializableColor(currentProfile.redGoalieCageColor),
-                BlueSkaterHelmetRef = CreateReferenceFromEntry(currentProfile.blueSkaterHelmet),
-                RedSkaterHelmetRef = CreateReferenceFromEntry(currentProfile.redSkaterHelmet),
-                BlueSkaterHelmetColor = new SerializableColor(currentProfile.blueSkaterHelmetColor),
-                RedSkaterHelmetColor = new SerializableColor(currentProfile.redSkaterHelmetColor),
-                BlueSkaterLetteringColor = new SerializableColor(currentProfile.blueSkaterLetteringColor),
-                RedSkaterLetteringColor = new SerializableColor(currentProfile.redSkaterLetteringColor),
-                BlueGoalieLetteringColor = new SerializableColor(currentProfile.blueGoalieLetteringColor),
-                RedGoalieLetteringColor = new SerializableColor(currentProfile.redGoalieLetteringColor),
-                BlueSkaterNumberOutlineColor = new SerializableColor(currentProfile.blueSkaterNumberOutlineColor),
-                RedSkaterNumberOutlineColor = new SerializableColor(currentProfile.redSkaterNumberOutlineColor),
-                BlueGoalieNumberOutlineColor = new SerializableColor(currentProfile.blueGoalieNumberOutlineColor),
-                RedGoalieNumberOutlineColor = new SerializableColor(currentProfile.redGoalieNumberOutlineColor),
-                BlueSkaterNumberOutlineWidth = currentProfile.blueSkaterNumberOutlineWidth,
-                RedSkaterNumberOutlineWidth = currentProfile.redSkaterNumberOutlineWidth,
-                BlueGoalieNumberOutlineWidth = currentProfile.blueGoalieNumberOutlineWidth,
-                RedGoalieNumberOutlineWidth = currentProfile.redGoalieNumberOutlineWidth,
-
-                // Puck
-                PuckRef = CreateReferenceFromEntry(currentProfile.puck),
-                PuckListRef = currentProfile.puckList.Select(p => CreatePuckReference(p)).ToList(),
-
-                // Full arena
-                FullArenaEnabled = currentProfile.fullArenaEnabled,
-                FullArenaBundle = currentProfile.fullArenaBundle,
-                FullArenaPrefab = currentProfile.fullArenaPrefab,
-                FullArenaWorkshopId = currentProfile.fullArenaWorkshopId,
-                
-                // Default arena-specifics
-                CrowdEnabled = currentProfile.crowdEnabled,
-                HangarEnabled = currentProfile.hangarEnabled,
-                ScoreboardEnabled = currentProfile.scoreboardEnabled,
-                GlassEnabled = currentProfile.glassEnabled,
-                IceRef = CreateReferenceFromEntry(currentProfile.ice),
-                IceSmoothness = currentProfile.iceSmoothness,
-                BoardsBorderTopColor = new SerializableColor(currentProfile.boardsBorderTopColor),
-                BoardsMiddleColor = new SerializableColor(currentProfile.boardsMiddleColor),
-                BoardsBorderBottomColor = new SerializableColor(currentProfile.boardsBorderBottomColor),
-                GlassSmoothness = currentProfile.glassSmoothness,
-                PillarsColor = new SerializableColor(currentProfile.pillarsColor),
-                SpectatorDensity = currentProfile.spectatorDensity,
-                NetRef = CreateReferenceFromEntry(currentProfile.net),
-
-                // Stick Tape
-                BlueSkaterBladeTapeMode = currentProfile.blueSkaterBladeTapeMode,
-                BlueSkaterBladeTapeRef = CreateReferenceFromEntry(currentProfile.blueSkaterBladeTape),
-                BlueSkaterBladeTapeColor = new SerializableColor(currentProfile.blueSkaterBladeTapeColor),
-
-                BlueSkaterShaftTapeMode = currentProfile.blueSkaterShaftTapeMode,
-                BlueSkaterShaftTapeRef = CreateReferenceFromEntry(currentProfile.blueSkaterShaftTape),
-                BlueSkaterShaftTapeColor = new SerializableColor(currentProfile.blueSkaterShaftTapeColor),
-
-                BlueGoalieBladeTapeMode = currentProfile.blueGoalieBladeTapeMode,
-                BlueGoalieBladeTapeRef = CreateReferenceFromEntry(currentProfile.blueGoalieBladeTape),
-                BlueGoalieBladeTapeColor = new SerializableColor(currentProfile.blueGoalieBladeTapeColor),
-
-                BlueGoalieShaftTapeMode = currentProfile.blueGoalieShaftTapeMode,
-                BlueGoalieShaftTapeRef = CreateReferenceFromEntry(currentProfile.blueGoalieShaftTape),
-                BlueGoalieShaftTapeColor = new SerializableColor(currentProfile.blueGoalieShaftTapeColor),
-
-                RedSkaterBladeTapeMode = currentProfile.redSkaterBladeTapeMode,
-                RedSkaterBladeTapeRef = CreateReferenceFromEntry(currentProfile.redSkaterBladeTape),
-                RedSkaterBladeTapeColor = new SerializableColor(currentProfile.redSkaterBladeTapeColor),
-
-                RedSkaterShaftTapeMode = currentProfile.redSkaterShaftTapeMode,
-                RedSkaterShaftTapeRef = CreateReferenceFromEntry(currentProfile.redSkaterShaftTape),
-                RedSkaterShaftTapeColor = new SerializableColor(currentProfile.redSkaterShaftTapeColor),
-
-                RedGoalieBladeTapeMode = currentProfile.redGoalieBladeTapeMode,
-                RedGoalieBladeTapeRef = CreateReferenceFromEntry(currentProfile.redGoalieBladeTape),
-                RedGoalieBladeTapeColor = new SerializableColor(currentProfile.redGoalieBladeTapeColor),
-
-                RedGoalieShaftTapeMode = currentProfile.redGoalieShaftTapeMode,
-                RedGoalieShaftTapeRef = CreateReferenceFromEntry(currentProfile.redGoalieShaftTape),
-                RedGoalieShaftTapeColor = new SerializableColor(currentProfile.redGoalieShaftTapeColor),
-
-                // Team Colors
-                BlueTeamColorEnabled = currentProfile.blueTeamColorEnabled,
-                RedTeamColorEnabled = currentProfile.redTeamColorEnabled,
-                BlueTeamColor = new SerializableColor(currentProfile.blueTeamColor),
-                RedTeamColor = new SerializableColor(currentProfile.redTeamColor),
-                BlueTeamName = currentProfile.blueTeamName,
-                RedTeamName = currentProfile.redTeamName,
-
-                // Minimap moved to the QoL profile (HUD) — see QoLConfig.
-
-                // Chat moved to the QoL profile (HUD) — see QoLConfig.
-
-                // Skybox
-                SkyboxAtmosphereThickness = currentProfile.skyboxAtmosphereThickness,
-                SkyboxExposure = currentProfile.skyboxExposure,
-                SkyboxSunDisk = currentProfile.skyboxSunDisk,
-                SkyboxSunSize = currentProfile.skyboxSunSize,
-                SkyboxSunSizeConvergence = currentProfile.skyboxSunSizeConvergence,
-                SkyboxGroundColor = new SerializableColor(currentProfile.skyboxGroundColor),
-                SkyboxSkyTint = new SerializableColor(currentProfile.skyboxSkyTint),
-
-                // Puck FX
-                PuckFXOutlineColor = new SerializableColor(currentProfile.puckFXOutlineColor),
-                PuckFXOutlineKernelSize = currentProfile.puckFXOutlineKernelSize,
-                PuckFXElevationIndicatorColor = new SerializableColor(currentProfile.puckFXElevationIndicatorColor),
-                PuckFXVerticalityLineColor = new SerializableColor(currentProfile.puckFXVerticalityLineColor),
-                PuckFXVerticalityLineStartAlpha = currentProfile.puckFXVerticalityLineStartAlpha,
-                PuckFXVerticalityLineEndAlpha = currentProfile.puckFXVerticalityLineEndAlpha,
-                PuckFXTrailEnabled = currentProfile.puckFXTrailEnabled,
-                PuckFXTrailColor = new SerializableColor(currentProfile.puckFXTrailColor),
-                PuckFXTrailStartWidth = currentProfile.puckFXTrailStartWidth,
-                PuckFXTrailEndWidth = currentProfile.puckFXTrailEndWidth,
-                PuckFXTrailLifetime = currentProfile.puckFXTrailLifetime,
-                PuckFXTrailStartAlpha = currentProfile.puckFXTrailStartAlpha,
-                PuckFXTrailEndAlpha = currentProfile.puckFXTrailEndAlpha,
-                PuckFXSilhouetteColor = new SerializableColor(currentProfile.puckFXSilhouetteColor),
-
-                // QoL is persisted by QoLStorage; do not re-include it
-                // in the reskin profile so visual profiles stay shareable.
-
-                // Gloss moved to the QoL profile (personal/perf) — see QoLConfig.
-            };
-
-            string json = JsonConvert.SerializeObject(serializableProfile, Formatting.Indented);
+            // Profile serializes directly to the legacy wire shape via ProfileContractResolver.
+            string json = JsonConvert.SerializeObject(currentProfile, ProfileSerializerSettings);
             File.WriteAllText(ProfilePath, json);
             Plugin.LogDebug($"Reskin profile saved to: {ProfilePath}");
         }
@@ -775,7 +344,7 @@ public static class ReskinProfileManager
             Plugin.LogError($"Failed to save reskin profile: {ex.Message}");
         }
     }
-    
+
     /// <summary>
     /// Applies all settings from the CurrentProfile to the game via the SwapperManager.
     /// Call this after loading a profile or making a change.
@@ -892,9 +461,11 @@ public static class ReskinProfileManager
             Plugin.LogWarning(missingPackInfo); return null; // Pack not found
         }
 
-        // Find the entry within that pack with the matching name
-        // TODO the pack reference not saving reskinType with the ref is causing problems looking up
-        var entry = pack.Reskins.FirstOrDefault(e => e.Name == reference.EntryName && e.Type == type);
+        // Find the entry within that pack with the matching name and type. Prefer the type stored
+        // in the reference (new profiles); fall back to the per-field type passed by the caller for
+        // older profiles that predate reskinType being persisted.
+        string lookupType = string.IsNullOrEmpty(reference.ReskinType) ? type : reference.ReskinType;
+        var entry = pack.Reskins.FirstOrDefault(e => e.Name == reference.EntryName && e.Type == lookupType);
 
         if (entry == null)
         {
@@ -925,7 +496,7 @@ public static class ReskinProfileManager
     private static ReskinReference CreatePuckReference(ReskinRegistry.ReskinEntry entry)
     {
         if (IsDefaultPuckEntry(entry))
-            return new ReskinReference { PackId = DefaultPuckPackId, EntryName = "Default" };
+            return new ReskinReference { PackId = DefaultPuckPackId, EntryName = "Default", ReskinType = "puck" };
         return CreateReferenceFromEntry(entry);
     }
 
@@ -944,6 +515,7 @@ public static class ReskinProfileManager
             PackId = entry.ParentPack.UniqueId,
             EntryName = entry.Name,
             WorkshopId = entry.ParentPack.WorkshopId,
+            ReskinType = entry.Type,
         };
     }
     
@@ -1038,6 +610,163 @@ public static class ReskinProfileManager
     }
 
     // Minimap reset moved to the QoL profile (UISection).
+
+    // ----------------------------------------------------------------------------------
+    //  Serialization
+    //
+    //  The Profile class below IS the on-disk shape. A custom contract resolver maps each
+    //  field to the exact wire format the mod has always used, so existing ReskinProfile.json
+    //  files load unchanged:
+    //    * field name == JSON key (camelCase), e.g. iceSmoothness, blueTeamColor
+    //    * ReskinEntry / List<ReskinEntry> fields get a "Ref" suffix (stickAttackerBlueRef)
+    //      and serialize as ReskinReference(s) instead of the live object
+    //    * Color fields serialize as { r, g, b, a }
+    //  Fields absent from the JSON keep their Profile() initializer defaults (Newtonsoft only
+    //  overwrites members it finds), which replaces the old "?? defaultProfile.x" hydration.
+    //  This collapses the former Profile + SerializableProfile + LoadProfile + SaveProfile
+    //  quadruple-mirror into a single source of truth: the annotated Profile fields.
+    // ----------------------------------------------------------------------------------
+
+    private static readonly JsonSerializerSettings ProfileSerializerSettings = new JsonSerializerSettings
+    {
+        ContractResolver = new ProfileContractResolver(),
+        Formatting = Formatting.Indented,
+        NullValueHandling = NullValueHandling.Include,
+    };
+
+    private class ProfileContractResolver : DefaultContractResolver
+    {
+        protected override List<MemberInfo> GetSerializableMembers(Type objectType)
+        {
+            // base supplies public properties (e.g. ReskinReference); Profile and
+            // SerializableColor use public fields, so include those too.
+            var members = base.GetSerializableMembers(objectType);
+            foreach (var f in objectType.GetFields(BindingFlags.Public | BindingFlags.Instance))
+                if (!members.Contains(f)) members.Add(f);
+            return members;
+        }
+
+        protected override JsonProperty CreateProperty(MemberInfo member, MemberSerialization memberSerialization)
+        {
+            var prop = base.CreateProperty(member, memberSerialization);
+            var fieldType = (member as FieldInfo)?.FieldType;
+
+            if (fieldType == typeof(ReskinRegistry.ReskinEntry))
+            {
+                // Live entry -> "<name>Ref" as a ReskinReference. The reskin type comes from the
+                // field's [PresetField] metadata (single source of truth), with a fallback for the
+                // legacy untagged 'puck' field.
+                prop.PropertyName = member.Name + "Ref";
+                string type = member.GetCustomAttribute<PresetFieldAttribute>()?.ReskinType;
+                if (string.IsNullOrEmpty(type) && member.Name == "puck") type = "puck";
+                if (string.IsNullOrEmpty(type))
+                    Plugin.LogWarning($"[Profile] ReskinEntry field '{member.Name}' has no reskin type; older-profile lookups for it may fail.");
+                prop.Converter = new ReskinEntryRefConverter(type);
+                prop.Readable = prop.Writable = true;
+            }
+            else if (fieldType == typeof(List<ReskinRegistry.ReskinEntry>))
+            {
+                prop.PropertyName = member.Name + "Ref";
+                prop.Converter = new PuckListConverter();
+                prop.Readable = prop.Writable = true;
+            }
+            else if (fieldType == typeof(Color))
+            {
+                prop.Converter = new ColorJsonConverter();
+                prop.Readable = prop.Writable = true;
+            }
+            else if (member is FieldInfo)
+            {
+                prop.Readable = prop.Writable = true;
+            }
+            return prop;
+        }
+    }
+
+    /// <summary>UnityEngine.Color &lt;-&gt; { r, g, b, a }, matching the legacy SerializableColor shape.</summary>
+    private class ColorJsonConverter : JsonConverter
+    {
+        public override bool CanConvert(Type t) => t == typeof(Color);
+
+        public override void WriteJson(JsonWriter w, object value, JsonSerializer s)
+        {
+            var c = (Color)value;
+            w.WriteStartObject();
+            w.WritePropertyName("r"); w.WriteValue(c.r);
+            w.WritePropertyName("g"); w.WriteValue(c.g);
+            w.WritePropertyName("b"); w.WriteValue(c.b);
+            w.WritePropertyName("a"); w.WriteValue(c.a);
+            w.WriteEndObject();
+        }
+
+        public override object ReadJson(JsonReader r, Type t, object existingValue, JsonSerializer s)
+        {
+            // Null/absent -> keep the field's initializer default (matches old "?? default").
+            if (r.TokenType == JsonToken.Null) return existingValue;
+            var o = JObject.Load(r);
+            return new Color(
+                o["r"]?.Value<float>() ?? 0f,
+                o["g"]?.Value<float>() ?? 0f,
+                o["b"]?.Value<float>() ?? 0f,
+                o["a"]?.Value<float>() ?? 1f);
+        }
+    }
+
+    /// <summary>Live ReskinEntry &lt;-&gt; ReskinReference; resolves against the registry on read.</summary>
+    private class ReskinEntryRefConverter : JsonConverter
+    {
+        private readonly string _fieldType;
+        public ReskinEntryRefConverter(string fieldType) { _fieldType = fieldType; }
+
+        public override bool CanConvert(Type t) => t == typeof(ReskinRegistry.ReskinEntry);
+
+        public override void WriteJson(JsonWriter w, object value, JsonSerializer s)
+        {
+            var reference = CreateReferenceFromEntry(value as ReskinRegistry.ReskinEntry);
+            if (reference == null) { w.WriteNull(); return; }
+            s.Serialize(w, reference);
+        }
+
+        public override object ReadJson(JsonReader r, Type t, object existingValue, JsonSerializer s)
+        {
+            if (r.TokenType == JsonToken.Null) return null;
+            var reference = s.Deserialize<ReskinReference>(r);
+            return FindEntryFromReference(reference, _fieldType);
+        }
+    }
+
+    /// <summary>Randomizer puck list &lt;-&gt; list of ReskinReference, preserving the Default sentinel.</summary>
+    private class PuckListConverter : JsonConverter
+    {
+        public override bool CanConvert(Type t) => t == typeof(List<ReskinRegistry.ReskinEntry>);
+
+        public override void WriteJson(JsonWriter w, object value, JsonSerializer s)
+        {
+            var list = value as List<ReskinRegistry.ReskinEntry> ?? new List<ReskinRegistry.ReskinEntry>();
+            w.WriteStartArray();
+            foreach (var entry in list)
+            {
+                var reference = CreatePuckReference(entry);
+                if (reference != null) s.Serialize(w, reference);
+            }
+            w.WriteEndArray();
+        }
+
+        public override object ReadJson(JsonReader r, Type t, object existingValue, JsonSerializer s)
+        {
+            var result = new List<ReskinRegistry.ReskinEntry>();
+            if (r.TokenType == JsonToken.Null) return result;
+            var arr = JArray.Load(r);
+            foreach (var item in arr)
+            {
+                var reference = item.ToObject<ReskinReference>();
+                if (reference?.PackId == DefaultPuckPackId) { result.Add(CreateDefaultPuckEntry()); continue; }
+                var entry = FindEntryFromReference(reference, "puck");
+                if (entry != null) result.Add(entry);
+            }
+            return result;
+        }
+    }
 
     public class Profile
     {
@@ -1335,306 +1064,18 @@ public static class ReskinProfileManager
 
         [JsonProperty("entryName")]
         public string EntryName { get; set; }
-        
+
         [JsonProperty("workshopId")]
         public ulong WorkshopId { get; set; }
+
+        // The reskin type (e.g. "stick_attacker") is now stored alongside the reference so
+        // lookups don't depend on the caller knowing the field's type. Older profiles omit it
+        // (NullValueHandling.Ignore keeps new files clean too); on load we fall back to the
+        // per-field type supplied by the contract resolver. Fixes the long-standing lookup TODO.
+        [JsonProperty("reskinType", NullValueHandling = NullValueHandling.Ignore)]
+        public string ReskinType { get; set; }
     }
     
-    /// <summary>
-    /// The data structure that is actually saved to and loaded from the JSON file.
-    /// </summary>
-    [Serializable]
-    private class SerializableProfile
-    {
-        // STICKS
-        [JsonProperty("stickAttackerBlueRef")]
-        public ReskinReference StickAttackerBlueRef { get; set; }
-        [JsonProperty("stickAttackerBluePersonalRef")]
-        public ReskinReference StickAttackerBluePersonalRef { get; set; }
-        [JsonProperty("stickAttackerRedRef")]
-        public ReskinReference StickAttackerRedRef { get; set; }
-        [JsonProperty("stickAttackerRedPersonalRef")]
-        public ReskinReference StickAttackerRedPersonalRef { get; set; }
-  
-        [JsonProperty("stickGoalieBlueRef")]
-        public ReskinReference StickGoalieBlueRef { get; set; }
-        [JsonProperty("stickGoalieBluePersonalRef")]
-        public ReskinReference StickGoalieBluePersonalRef { get; set; }
-        [JsonProperty("stickGoalieRedRef")]
-        public ReskinReference StickGoalieRedRef { get; set; }
-        [JsonProperty("stickGoalieRedPersonalRef")]
-        public ReskinReference StickGoalieRedPersonalRef { get; set; }
-
-        [JsonProperty("blueGoalieHelmetRef")]
-        public ReskinReference BlueGoalieHelmetRef { get; set; }
-    
-        [JsonProperty("redGoalieHelmetRef")]
-        public ReskinReference RedGoalieHelmetRef { get; set; }
-
-        [JsonProperty("blueSkaterTorsoRef")]
-        public ReskinReference BlueSkaterTorsoRef { get; set; }
-        [JsonProperty("blueSkaterGroinRef")]
-        public ReskinReference BlueSkaterGroinRef { get; set; }
-        [JsonProperty("blueGoalieTorsoRef")]
-        public ReskinReference BlueGoalieTorsoRef { get; set; }
-        [JsonProperty("blueGoalieGroinRef")]
-        public ReskinReference BlueGoalieGroinRef { get; set; }
-        [JsonProperty("redSkaterTorsoRef")]
-        public ReskinReference RedSkaterTorsoRef { get; set; }
-        [JsonProperty("redSkaterGroinRef")]
-        public ReskinReference RedSkaterGroinRef { get; set; }
-        [JsonProperty("redGoalieTorsoRef")]
-        public ReskinReference RedGoalieTorsoRef { get; set; }
-        [JsonProperty("redGoalieGroinRef")]
-        public ReskinReference RedGoalieGroinRef { get; set; }
-        
-        [JsonProperty("blueLegPadLeftRef")]
-        public ReskinReference BlueLegPadLeftRef { get; set; }
-        [JsonProperty("blueLegPadRightRef")]
-        public ReskinReference BlueLegPadRightRef { get; set; }
-        [JsonProperty("redLegPadLeftRef")]
-        public ReskinReference RedLegPadLeftRef { get; set; }
-        [JsonProperty("redLegPadRightRef")]
-        public ReskinReference RedLegPadRightRef { get; set; }
-        [JsonProperty("blueLegPadDefaultColor")]
-        public SerializableColor BlueLegPadDefaultColor { get; set; }
-        [JsonProperty("redLegPadDefaultColor")]
-        public SerializableColor RedLegPadDefaultColor { get; set; }
-
-        [JsonProperty("blueGoalieHelmetColor")]
-        public SerializableColor BlueGoalieHelmetColor { get; set; }
-        [JsonProperty("redGoalieHelmetColor")]
-        public SerializableColor RedGoalieHelmetColor { get; set; }
-
-        [JsonProperty("blueGoalieMaskRef")]
-        public ReskinReference BlueGoalieMaskRef { get; set; }
-        [JsonProperty("redGoalieMaskRef")]
-        public ReskinReference RedGoalieMaskRef { get; set; }
-        [JsonProperty("blueGoalieMaskColor")]
-        public SerializableColor BlueGoalieMaskColor { get; set; }
-        [JsonProperty("redGoalieMaskColor")]
-        public SerializableColor RedGoalieMaskColor { get; set; }
-
-        [JsonProperty("blueGoalieCageColor")]
-        public SerializableColor BlueGoalieCageColor { get; set; }
-        [JsonProperty("redGoalieCageColor")]
-        public SerializableColor RedGoalieCageColor { get; set; }
-
-        [JsonProperty("blueSkaterHelmetRef")]
-        public ReskinReference BlueSkaterHelmetRef { get; set; }
-        [JsonProperty("redSkaterHelmetRef")]
-        public ReskinReference RedSkaterHelmetRef { get; set; }
-        [JsonProperty("blueSkaterHelmetColor")]
-        public SerializableColor BlueSkaterHelmetColor { get; set; }
-        [JsonProperty("redSkaterHelmetColor")]
-        public SerializableColor RedSkaterHelmetColor { get; set; }
-
-        [JsonProperty("blueSkaterLetteringColor")]
-        public SerializableColor BlueSkaterLetteringColor { get; set; }
-        [JsonProperty("redSkaterLetteringColor")]
-        public SerializableColor RedSkaterLetteringColor { get; set; }
-        [JsonProperty("blueGoalieLetteringColor")]
-        public SerializableColor BlueGoalieLetteringColor { get; set; }
-        [JsonProperty("redGoalieLetteringColor")]
-        public SerializableColor RedGoalieLetteringColor { get; set; }
-
-        [JsonProperty("blueSkaterNumberOutlineColor")]
-        public SerializableColor BlueSkaterNumberOutlineColor { get; set; }
-        [JsonProperty("redSkaterNumberOutlineColor")]
-        public SerializableColor RedSkaterNumberOutlineColor { get; set; }
-        [JsonProperty("blueGoalieNumberOutlineColor")]
-        public SerializableColor BlueGoalieNumberOutlineColor { get; set; }
-        [JsonProperty("redGoalieNumberOutlineColor")]
-        public SerializableColor RedGoalieNumberOutlineColor { get; set; }
-        [JsonProperty("blueSkaterNumberOutlineWidth")]
-        public float? BlueSkaterNumberOutlineWidth { get; set; }
-        [JsonProperty("redSkaterNumberOutlineWidth")]
-        public float? RedSkaterNumberOutlineWidth { get; set; }
-        [JsonProperty("blueGoalieNumberOutlineWidth")]
-        public float? BlueGoalieNumberOutlineWidth { get; set; }
-        [JsonProperty("redGoalieNumberOutlineWidth")]
-        public float? RedGoalieNumberOutlineWidth { get; set; }
-
-        // ARENA
-        [JsonProperty("fullArenaEnabled")]
-        public bool? FullArenaEnabled { get; set; }
-    
-        [JsonProperty("fullArenaBundle")]
-        public string FullArenaBundle { get; set; }
-    
-        [JsonProperty("fullArenaPrefab")]
-            public string FullArenaPrefab { get; set; }
-        [JsonProperty("fullArenaWorkshopId")]
-            public string FullArenaWorkshopId { get; set; }
-        [JsonProperty("crowdEnabled")]
-        public bool? CrowdEnabled { get; set; }
-        [JsonProperty("scoreboardEnabled")]
-        public bool? ScoreboardEnabled { get; set; }
-        [JsonProperty("glassEnabled")]
-        public bool? GlassEnabled { get; set; }
-        [JsonProperty("hangarEnabled")]
-        public bool? HangarEnabled { get; set; }
-        
-        [JsonProperty("iceRef")]
-        public ReskinReference IceRef { get; set; }
-        [JsonProperty("iceSmoothness")]
-        public float? IceSmoothness { get; set; }
-        [JsonProperty("glassSmoothness")]
-        public float? GlassSmoothness { get; set; }
-        [JsonProperty("pillarsColor")]
-        public SerializableColor PillarsColor { get; set; }
-        [JsonProperty("spectatorDensity")]
-        public float? SpectatorDensity { get; set; }
-        
-        
-        [JsonProperty("boardsBorderTopColor")]
-        public SerializableColor BoardsBorderTopColor { get; set; }
-        [JsonProperty("boardsMiddleColor")]
-        public SerializableColor BoardsMiddleColor { get; set; }
-        [JsonProperty("boardsBorderBottomColor")]
-        public SerializableColor BoardsBorderBottomColor { get; set; }
-        [JsonProperty("netRef")]
-        public ReskinReference NetRef { get; set; }
-
-        // STICK TAPE
-        [JsonProperty("blueSkaterBladeTapeMode")]
-        public string BlueSkaterBladeTapeMode { get; set; }
-        [JsonProperty("blueSkaterBladeTapeRef")]
-        public ReskinReference BlueSkaterBladeTapeRef { get; set; }
-        [JsonProperty("blueSkaterBladeTapeColor")]
-        public SerializableColor BlueSkaterBladeTapeColor { get; set; }
-
-        [JsonProperty("blueSkaterShaftTapeMode")]
-        public string BlueSkaterShaftTapeMode { get; set; }
-        [JsonProperty("blueSkaterShaftTapeRef")]
-        public ReskinReference BlueSkaterShaftTapeRef { get; set; }
-        [JsonProperty("blueSkaterShaftTapeColor")]
-        public SerializableColor BlueSkaterShaftTapeColor { get; set; }
-
-        [JsonProperty("blueGoalieBladeTapeMode")]
-        public string BlueGoalieBladeTapeMode { get; set; }
-        [JsonProperty("blueGoalieBladeTapeRef")]
-        public ReskinReference BlueGoalieBladeTapeRef { get; set; }
-        [JsonProperty("blueGoalieBladeTapeColor")]
-        public SerializableColor BlueGoalieBladeTapeColor { get; set; }
-
-        [JsonProperty("blueGoalieShaftTapeMode")]
-        public string BlueGoalieShaftTapeMode { get; set; }
-        [JsonProperty("blueGoalieShaftTapeRef")]
-        public ReskinReference BlueGoalieShaftTapeRef { get; set; }
-        [JsonProperty("blueGoalieShaftTapeColor")]
-        public SerializableColor BlueGoalieShaftTapeColor { get; set; }
-
-        [JsonProperty("redSkaterBladeTapeMode")]
-        public string RedSkaterBladeTapeMode { get; set; }
-        [JsonProperty("redSkaterBladeTapeRef")]
-        public ReskinReference RedSkaterBladeTapeRef { get; set; }
-        [JsonProperty("redSkaterBladeTapeColor")]
-        public SerializableColor RedSkaterBladeTapeColor { get; set; }
-
-        [JsonProperty("redSkaterShaftTapeMode")]
-        public string RedSkaterShaftTapeMode { get; set; }
-        [JsonProperty("redSkaterShaftTapeRef")]
-        public ReskinReference RedSkaterShaftTapeRef { get; set; }
-        [JsonProperty("redSkaterShaftTapeColor")]
-        public SerializableColor RedSkaterShaftTapeColor { get; set; }
-
-        [JsonProperty("redGoalieBladeTapeMode")]
-        public string RedGoalieBladeTapeMode { get; set; }
-        [JsonProperty("redGoalieBladeTapeRef")]
-        public ReskinReference RedGoalieBladeTapeRef { get; set; }
-        [JsonProperty("redGoalieBladeTapeColor")]
-        public SerializableColor RedGoalieBladeTapeColor { get; set; }
-
-        [JsonProperty("redGoalieShaftTapeMode")]
-        public string RedGoalieShaftTapeMode { get; set; }
-        [JsonProperty("redGoalieShaftTapeRef")]
-        public ReskinReference RedGoalieShaftTapeRef { get; set; }
-        [JsonProperty("redGoalieShaftTapeColor")]
-        public SerializableColor RedGoalieShaftTapeColor { get; set; }
-
-        // PUCKS
-        [JsonProperty("puckRef")]
-        public ReskinReference PuckRef { get; set; }
-        [JsonProperty("puckListRef")]
-        public List<ReskinReference> PuckListRef { get; set; } = new List<ReskinReference>();
-
-        // TEAM COLORS
-        // Legacy single toggle — kept for read-only migration into the per-team flags.
-        [JsonProperty("teamColorsEnabled")]
-        public bool? TeamColorsEnabled { get; set; }
-        [JsonProperty("blueTeamColorEnabled")]
-        public bool? BlueTeamColorEnabled { get; set; }
-        [JsonProperty("redTeamColorEnabled")]
-        public bool? RedTeamColorEnabled { get; set; }
-        [JsonProperty("blueTeamColor")]
-        public SerializableColor BlueTeamColor { get; set; }
-        [JsonProperty("redTeamColor")]
-        public SerializableColor RedTeamColor { get; set; }
-        // teamIndicatorEnabled moved to the QoL profile — see QoLConfig.
-        [JsonProperty("blueTeamName")]
-        public string BlueTeamName { get; set; }
-        [JsonProperty("redTeamName")]
-        public string RedTeamName { get; set; }
-
-        // Minimap moved to the QoL profile (HUD) — see QoLConfig.
-
-        // Chat moved to the QoL profile (HUD) — see QoLConfig.
-
-        // SKYBOX
-        [JsonProperty("skyboxAtmosphereThickness")]
-        public float? SkyboxAtmosphereThickness { get; set; }
-        [JsonProperty("skyboxExposure")]
-        public float? SkyboxExposure { get; set; }
-        [JsonProperty("skyboxSunDisk")]
-        public float? SkyboxSunDisk { get; set; }
-        [JsonProperty("skyboxSunSize")]
-        public float? SkyboxSunSize { get; set; }
-        [JsonProperty("skyboxSunSizeConvergence")]
-        public float? SkyboxSunSizeConvergence { get; set; }
-        [JsonProperty("skyboxGroundColor")]
-        public SerializableColor SkyboxGroundColor { get; set; }
-        [JsonProperty("skyboxSkyTint")]
-        public SerializableColor SkyboxSkyTint { get; set; }
-
-        // PUCK FX
-        [JsonProperty("puckFXOutlineColor")]
-        public SerializableColor PuckFXOutlineColor { get; set; }
-        [JsonProperty("puckFXOutlineKernelSize")]
-        public int? PuckFXOutlineKernelSize { get; set; }
-        [JsonProperty("puckFXElevationIndicatorColor")]
-        public SerializableColor PuckFXElevationIndicatorColor { get; set; }
-        [JsonProperty("puckFXVerticalityLineColor")]
-        public SerializableColor PuckFXVerticalityLineColor { get; set; }
-        [JsonProperty("puckFXVerticalityLineStartAlpha")]
-        public float? PuckFXVerticalityLineStartAlpha { get; set; }
-        [JsonProperty("puckFXVerticalityLineEndAlpha")]
-        public float? PuckFXVerticalityLineEndAlpha { get; set; }
-        [JsonProperty("puckFXTrailEnabled")]
-        public bool? PuckFXTrailEnabled { get; set; }
-        [JsonProperty("puckFXTrailColor")]
-        public SerializableColor PuckFXTrailColor { get; set; }
-        [JsonProperty("puckFXTrailStartWidth")]
-        public float? PuckFXTrailStartWidth { get; set; }
-        [JsonProperty("puckFXTrailEndWidth")]
-        public float? PuckFXTrailEndWidth { get; set; }
-        [JsonProperty("puckFXTrailLifetime")]
-        public float? PuckFXTrailLifetime { get; set; }
-        [JsonProperty("puckFXTrailStartAlpha")]
-        public float? PuckFXTrailStartAlpha { get; set; }
-        [JsonProperty("puckFXTrailEndAlpha")]
-        public float? PuckFXTrailEndAlpha { get; set; }
-        [JsonProperty("puckFXSilhouetteColor")]
-        public SerializableColor PuckFXSilhouetteColor { get; set; }
-
-        // QoL is persisted by QoLStorage (config/ToastersReskinLoaderQoL.json
-        // + config/ToastersReskinLoaderServerPrefs.json). Do not add a
-        // playerQoL property here — it would re-couple the visual reskin
-        // profile to QoL state and re-introduce the share-leak risk the
-        // split was meant to avoid.
-      
-        // Gloss moved to the QoL profile (personal/perf) — see QoLConfig.
-    }
 }
 
 /// <summary>
