@@ -56,6 +56,12 @@ public class QoLProfile
     public bool EnableSavedServerPasswords { get; set; } = true;
     [JsonProperty("enableServerBrowserSortTweaks")]
     public bool EnableServerBrowserSortTweaks { get; set; } = true;
+    [JsonProperty("enableServerFavorites")]
+    public bool EnableServerFavorites { get; set; } = false;
+    [JsonProperty("enableServerBlocks")]
+    public bool EnableServerBlocks { get; set; } = false;
+    [JsonProperty("enableTrustedModLists")]
+    public bool EnableTrustedModLists { get; set; } = true;
     [JsonProperty("enableUnicodeFontFallback")]
     public bool EnableUnicodeFontFallback { get; set; } = true;
     [JsonProperty("enableFlagMaterialFix")]
@@ -77,6 +83,30 @@ public class QoLProfile
     public bool EnableFastServerBrowserScanning { get; set; } = false;
     [JsonProperty("enableVanillaUIRetheme")]
     public bool EnableVanillaUIRetheme { get; set; } = true;
+    [JsonProperty("enableServerSlotQueue")]
+    public bool EnableServerSlotQueue { get; set; } = true;
+    // V2 key rename (see note above) — flipped to default-off, so existing
+    // saves that merely inherited the old default-on don't keep "true".
+    [JsonProperty("enableMainMenuQuickJoinV2")]
+    public bool EnableMainMenuQuickJoin { get; set; } = false;
+    [JsonProperty("enableMainMenuServerBrowser")]
+    public bool EnableMainMenuServerBrowser { get; set; } = false;
+    [JsonProperty("enableUiTextShadow")]
+    public bool EnableUiTextShadow { get; set; } = true;
+    // V2 key rename (same migration trick as the cache/fast-scan keys
+    // above): the original "enableScoreboardMilliseconds" shipped
+    // default-on, so renaming forces existing saves that merely inherited
+    // that default back to the new default-off instead of keeping "true".
+    [JsonProperty("enableScoreboardMillisecondsV2")]
+    public bool EnableScoreboardMilliseconds { get; set; } = false;
+    [JsonProperty("enableScoreboardClockColor")]
+    public bool EnableScoreboardClockColor { get; set; } = true;
+    // V2 key rename (see note above) — flipped to default-off, so existing
+    // saves that merely inherited the old default-on don't keep "true".
+    [JsonProperty("enableChatNoFadeV2")]
+    public bool EnableChatNoFade { get; set; } = false;
+    [JsonProperty("enableChatTransparentContainer")]
+    public bool EnableChatTransparentContainer { get; set; } = true;
     [JsonProperty("enableEnhancedModMenu")]
     public bool EnableEnhancedModMenu { get; set; } = true;
     [JsonProperty("enableAutoConnectMatchmaking")]
@@ -201,6 +231,9 @@ public class QoLProfile
             enablePartyLineup = EnablePartyLineup,
             enableSavedServerPasswords = EnableSavedServerPasswords,
             enableServerBrowserSortTweaks = EnableServerBrowserSortTweaks,
+            enableServerFavorites  = EnableServerFavorites,
+            enableServerBlocks     = EnableServerBlocks,
+            enableTrustedModLists  = EnableTrustedModLists,
             enableUnicodeFontFallback = EnableUnicodeFontFallback,
             enableFlagMaterialFix = EnableFlagMaterialFix,
             enableBetterFriendsList = EnableBetterFriendsList,
@@ -208,6 +241,14 @@ public class QoLProfile
             enableServerPreviewCache = EnableServerPreviewCache,
             enableFastServerBrowserScanning = EnableFastServerBrowserScanning,
             enableVanillaUIRetheme = EnableVanillaUIRetheme,
+            enableServerSlotQueue = EnableServerSlotQueue,
+            enableMainMenuQuickJoin = EnableMainMenuQuickJoin,
+            enableMainMenuServerBrowser = EnableMainMenuServerBrowser,
+            enableUiTextShadow = EnableUiTextShadow,
+            enableScoreboardMilliseconds = EnableScoreboardMilliseconds,
+            enableScoreboardClockColor   = EnableScoreboardClockColor,
+            enableChatNoFade               = EnableChatNoFade,
+            enableChatTransparentContainer = EnableChatTransparentContainer,
             enableEnhancedModMenu = EnableEnhancedModMenu,
             enableAutoConnectMatchmaking = EnableAutoConnectMatchmaking,
             disableControllerInput = DisableControllerInput,
@@ -280,6 +321,9 @@ public class QoLProfile
         EnablePartyLineup = c.enablePartyLineup;
         EnableSavedServerPasswords = c.enableSavedServerPasswords;
         EnableServerBrowserSortTweaks = c.enableServerBrowserSortTweaks;
+        EnableServerFavorites  = c.enableServerFavorites;
+        EnableServerBlocks     = c.enableServerBlocks;
+        EnableTrustedModLists  = c.enableTrustedModLists;
         EnableUnicodeFontFallback = c.enableUnicodeFontFallback;
         EnableFlagMaterialFix = c.enableFlagMaterialFix;
         EnableBetterFriendsList = c.enableBetterFriendsList;
@@ -287,6 +331,14 @@ public class QoLProfile
         EnableServerPreviewCache = c.enableServerPreviewCache;
         EnableFastServerBrowserScanning = c.enableFastServerBrowserScanning;
         EnableVanillaUIRetheme = c.enableVanillaUIRetheme;
+        EnableServerSlotQueue = c.enableServerSlotQueue;
+        EnableMainMenuQuickJoin = c.enableMainMenuQuickJoin;
+        EnableMainMenuServerBrowser = c.enableMainMenuServerBrowser;
+        EnableUiTextShadow = c.enableUiTextShadow;
+        EnableScoreboardMilliseconds = c.enableScoreboardMilliseconds;
+        EnableScoreboardClockColor   = c.enableScoreboardClockColor;
+        EnableChatNoFade               = c.enableChatNoFade;
+        EnableChatTransparentContainer = c.enableChatTransparentContainer;
         EnableEnhancedModMenu = c.enableEnhancedModMenu;
         EnableAutoConnectMatchmaking = c.enableAutoConnectMatchmaking;
         DisableControllerInput = c.disableControllerInput;
@@ -345,5 +397,19 @@ public class ServerPrefsProfile
 
     [JsonProperty("trustedServerMods")]
     public System.Collections.Generic.Dictionary<string, string> TrustedServerMods { get; set; }
+        = new System.Collections.Generic.Dictionary<string, string>();
+
+    // ip:port -> last-seen friendly server name. Existence in this dict
+    // = favorited; the cached name is just to keep the QoL management UI
+    // readable when the favorited server isn't currently in the browser
+    // listing.
+    [JsonProperty("favoriteServers")]
+    public System.Collections.Generic.Dictionary<string, string> FavoriteServers { get; set; }
+        = new System.Collections.Generic.Dictionary<string, string>();
+
+    // Same shape as FavoriteServers, but rows that match are hidden from
+    // the server browser entirely.
+    [JsonProperty("blockedServers")]
+    public System.Collections.Generic.Dictionary<string, string> BlockedServers { get; set; }
         = new System.Collections.Generic.Dictionary<string, string>();
 }
