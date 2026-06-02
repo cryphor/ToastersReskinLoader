@@ -133,7 +133,7 @@ public static class ArenaVisuals
 
     // GetComponentsInChildren scrapes anything parented under the arena
     // root, which on a live server includes Player GameObjects and the
-    // base-game UIPlayerUsernames labels. Disabling those breaks the
+    // base-game UIUsernames labels. Disabling those breaks the
     // nameplates ("Show Player Usernames" stops working). This filter
     // skips any component whose ancestor chain mentions player / puck /
     // username / UI / canvas / name so the prop/light/particle toggles
