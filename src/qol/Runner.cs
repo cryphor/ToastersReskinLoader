@@ -30,6 +30,7 @@ public sealed class QoLRunner : MonoBehaviour
         UnityEngine.Object.DontDestroyOnLoad(go);
         var runner = go.AddComponent<QoLRunner>();
         try { DevConsole.AttachTo(go); } catch (Exception e) { Debug.LogError("[QoL] DevConsole attach failed: " + e); }
+        try { PositionSelectFreeLook.AttachTo(go); } catch (Exception e) { Debug.LogError("[QoL] PositionSelectFreeLook attach failed: " + e); }
         return runner;
     }
 
@@ -43,15 +44,27 @@ public sealed class QoLRunner : MonoBehaviour
     private void Awake()
     {
         _instance = this;
+        // DisplaySettingsMigration runs standalone earlier in Plugin.OnEnable (before the reskin
+        // profile can be re-saved), so it's intentionally not called here.
         try { ReloadFromProfile(); }
         catch (Exception e) { Debug.LogError("[QoL] ReloadFromProfile failed: " + e); }
         try { SavedServerPasswords.Initialize(); }
         catch (Exception e) { Debug.LogError("[QoL] SavedServerPasswords.Initialize failed: " + e); }
+        try { ToasterReskinLoader.qol.serverbrowser.ServerSlotQueue.Initialize(); }
+        catch (Exception e) { Debug.LogError("[QoL] ServerSlotQueue.Initialize failed: " + e); }
+        try { MainMenuButtons.Initialize(); }
+        catch (Exception e) { Debug.LogError("[QoL] MainMenuButtons.Initialize failed: " + e); }
+        try { ServerBrowserSort.Initialize(); }
+        catch (Exception e) { Debug.LogError("[QoL] ServerBrowserSort.Initialize failed: " + e); }
+        try { UiTextShadow.Initialize(); }
+        catch (Exception e) { Debug.LogError("[QoL] UiTextShadow.Initialize failed: " + e); }
     }
 
     private void OnDestroy()
     {
         try { SavedServerPasswords.Teardown(); } catch { }
+        try { ToasterReskinLoader.qol.serverbrowser.ServerSlotQueue.Teardown(); } catch { }
+        try { MainMenuButtons.Teardown(); } catch { }
         if (_instance == this) _instance = null;
     }
 
@@ -60,6 +73,10 @@ public sealed class QoLRunner : MonoBehaviour
     // for that case) and the dev console is NOT open.
     private void Update()
     {
+        // ScoreboardPolish runs every frame regardless of menu state so
+        // the period clock keeps interpolating milliseconds during play.
+        try { ScoreboardPolish.Tick(); } catch { }
+
         if (_cmd == null || !_cmd.enableEscCloseMenus) return;
         if (DevConsole.Instance != null && DevConsole.Instance.IsOpen) return;
 

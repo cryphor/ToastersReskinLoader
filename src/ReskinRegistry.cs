@@ -116,6 +116,7 @@ public static class ReskinRegistry
             {
                 // Assign the captured ID to the pack object
                 pack.WorkshopId = workshopId;
+                pack.FolderPath = dir;
                 
                 // make paths absolute
                 foreach (var skin in pack.Reskins)
@@ -152,7 +153,29 @@ public static class ReskinRegistry
                 StringComparison.OrdinalIgnoreCase))
             .ToList();
     }
-    
+
+    /// <summary>
+    /// The "Unchanged" sentinel entry for a reskin type (no pack, null path). Used as the
+    /// first dropdown choice and the fallback value when no reskin is selected. Centralizes
+    /// what was a hand-built ReskinEntry repeated across every section.
+    /// </summary>
+    public static ReskinEntry UnchangedEntry(string reskinType) =>
+        new ReskinEntry { Name = "Unchanged", Path = null, Type = reskinType };
+
+    /// <summary>
+    /// Convenience for dropdowns: the reskins of a type with the "Unchanged" sentinel
+    /// prepended at index 0. Returns the sentinel via <paramref name="unchanged"/> so callers
+    /// can reuse it as the fallback selection.
+    /// </summary>
+    public static List<ReskinEntry> GetReskinChoices(string reskinType, out ReskinEntry unchanged)
+    {
+        unchanged = UnchangedEntry(reskinType);
+        var choices = GetReskinEntriesByType(reskinType);
+        choices.Insert(0, unchanged);
+        return choices;
+    }
+
+
     public class ReskinPack
     {
         [JsonProperty("name")]
@@ -170,6 +193,11 @@ public static class ReskinRegistry
         // This is not part of the JSON file, it's derived from the folder structure at runtime.
         [JsonIgnore]
         public ulong WorkshopId { get; set; }
+
+        // Absolute path to the pack's folder on disk (set at load). Used to discover
+        // bundled presets in <folder>/presets/. Not serialized.
+        [JsonIgnore]
+        public string FolderPath { get; set; }
 
         [JsonProperty("reskins")]
         public List<ReskinEntry> Reskins { get; set; } = new List<ReskinEntry>();

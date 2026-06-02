@@ -20,6 +20,12 @@ public static class PatchClientChat
         [HarmonyPrefix]
         static bool Prefix(ChatManagerController __instance, Dictionary<string, object> message)
         {
+            // Debug-only: stay completely inert (no logging, no command interception) in normal
+            // play. The patch is still registered by PatchAll, but does nothing unless the user
+            // has opted into debug logging.
+            if (!Plugin.modSettings.DebugLoggingModeEnabled)
+                return true;
+
             try
             {
                 string content = (string)message["content"];

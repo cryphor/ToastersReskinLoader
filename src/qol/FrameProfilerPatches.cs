@@ -312,130 +312,138 @@ public static class FrameProfilerPatches
         return $"{bytes / 1048576f:F1}MB";
     }
 
+    // All timing patches use Harmony's per-call `out PerCallState __state` instead of shared
+    // static Stopwatch/memBefore fields. The shared-static form corrupts measurements under
+    // reentrancy (notably EventManager.TriggerEvent, whose handlers can fire nested events):
+    // the inner call's Prefix would reset the timer before the outer Postfix read it. With
+    // __state each invocation carries its own start timestamp/memory on the call frame.
+    static float ElapsedMs(long startTicks) =>
+        (float)(Stopwatch.GetTimestamp() - startTicks) / Stopwatch.Frequency * 1000f;
+
     public static class Patch_GameManagerTick
     {
-        static readonly Stopwatch sw = new Stopwatch();
-        static long memBefore;
-        public static void Prefix() { memBefore = GC.GetTotalMemory(false); sw.Restart(); }
-        public static void Postfix()
+        public static void Prefix(out FrameProfilerMods.PerCallState __state)
         {
-            sw.Stop();
-            long alloc = GC.GetTotalMemory(false) - memBefore;
-            RecordAndReport(TrackedSystem.GameManagerTick, (float)sw.Elapsed.TotalMilliseconds, Math.Max(0, alloc));
+            __state.Ticks = Stopwatch.GetTimestamp();
+            __state.Mem = GC.GetTotalMemory(false);
+        }
+        public static void Postfix(FrameProfilerMods.PerCallState __state)
+        {
+            long alloc = GC.GetTotalMemory(false) - __state.Mem;
+            RecordAndReport(TrackedSystem.GameManagerTick, ElapsedMs(__state.Ticks), Math.Max(0, alloc));
         }
     }
 
     public static class Patch_SteamCallbackLoop
     {
-        static readonly Stopwatch sw = new Stopwatch();
-        static long memBefore;
-        public static void Prefix() { memBefore = GC.GetTotalMemory(false); sw.Restart(); }
-        public static void Postfix()
+        public static void Prefix(out FrameProfilerMods.PerCallState __state)
         {
-            sw.Stop();
-            long alloc = GC.GetTotalMemory(false) - memBefore;
-            RecordAndReport(TrackedSystem.SteamCallbackLoop, (float)sw.Elapsed.TotalMilliseconds, Math.Max(0, alloc));
+            __state.Ticks = Stopwatch.GetTimestamp();
+            __state.Mem = GC.GetTotalMemory(false);
+        }
+        public static void Postfix(FrameProfilerMods.PerCallState __state)
+        {
+            long alloc = GC.GetTotalMemory(false) - __state.Mem;
+            RecordAndReport(TrackedSystem.SteamCallbackLoop, ElapsedMs(__state.Ticks), Math.Max(0, alloc));
         }
     }
 
     public static class Patch_PhysicsUpdate
     {
-        static readonly Stopwatch sw = new Stopwatch();
-        static long memBefore;
-        public static void Prefix() { memBefore = GC.GetTotalMemory(false); sw.Restart(); }
-        public static void Postfix()
+        public static void Prefix(out FrameProfilerMods.PerCallState __state)
         {
-            sw.Stop();
-            long alloc = GC.GetTotalMemory(false) - memBefore;
-            RecordAndReport(TrackedSystem.PhysicsSimulate, (float)sw.Elapsed.TotalMilliseconds, Math.Max(0, alloc));
+            __state.Ticks = Stopwatch.GetTimestamp();
+            __state.Mem = GC.GetTotalMemory(false);
+        }
+        public static void Postfix(FrameProfilerMods.PerCallState __state)
+        {
+            long alloc = GC.GetTotalMemory(false) - __state.Mem;
+            RecordAndReport(TrackedSystem.PhysicsSimulate, ElapsedMs(__state.Ticks), Math.Max(0, alloc));
         }
     }
 
     public static class Patch_SyncObjectTick
     {
-        static readonly Stopwatch sw = new Stopwatch();
-        static long memBefore;
-        public static void Prefix() { memBefore = GC.GetTotalMemory(false); sw.Restart(); }
-        public static void Postfix()
+        public static void Prefix(out FrameProfilerMods.PerCallState __state)
         {
-            sw.Stop();
-            long alloc = GC.GetTotalMemory(false) - memBefore;
-            RecordAndReport(TrackedSystem.SyncObjectTick, (float)sw.Elapsed.TotalMilliseconds, Math.Max(0, alloc));
+            __state.Ticks = Stopwatch.GetTimestamp();
+            __state.Mem = GC.GetTotalMemory(false);
+        }
+        public static void Postfix(FrameProfilerMods.PerCallState __state)
+        {
+            long alloc = GC.GetTotalMemory(false) - __state.Mem;
+            RecordAndReport(TrackedSystem.SyncObjectTick, ElapsedMs(__state.Ticks), Math.Max(0, alloc));
         }
     }
 
     public static class Patch_SyncObjectGather
     {
-        static readonly Stopwatch sw = new Stopwatch();
-        static long memBefore;
-        public static void Prefix() { memBefore = GC.GetTotalMemory(false); sw.Restart(); }
-        public static void Postfix()
+        public static void Prefix(out FrameProfilerMods.PerCallState __state)
         {
-            sw.Stop();
-            long alloc = GC.GetTotalMemory(false) - memBefore;
-            RecordAndReport(TrackedSystem.SyncObjectGather, (float)sw.Elapsed.TotalMilliseconds, Math.Max(0, alloc));
+            __state.Ticks = Stopwatch.GetTimestamp();
+            __state.Mem = GC.GetTotalMemory(false);
+        }
+        public static void Postfix(FrameProfilerMods.PerCallState __state)
+        {
+            long alloc = GC.GetTotalMemory(false) - __state.Mem;
+            RecordAndReport(TrackedSystem.SyncObjectGather, ElapsedMs(__state.Ticks), Math.Max(0, alloc));
         }
     }
 
     public static class Patch_ReplayRecorderTick
     {
-        static readonly Stopwatch sw = new Stopwatch();
-        static long memBefore;
-        public static void Prefix() { memBefore = GC.GetTotalMemory(false); sw.Restart(); }
-        public static void Postfix()
+        public static void Prefix(out FrameProfilerMods.PerCallState __state)
         {
-            sw.Stop();
-            long alloc = GC.GetTotalMemory(false) - memBefore;
-            RecordAndReport(TrackedSystem.ReplayRecorderTick, (float)sw.Elapsed.TotalMilliseconds, Math.Max(0, alloc));
+            __state.Ticks = Stopwatch.GetTimestamp();
+            __state.Mem = GC.GetTotalMemory(false);
+        }
+        public static void Postfix(FrameProfilerMods.PerCallState __state)
+        {
+            long alloc = GC.GetTotalMemory(false) - __state.Mem;
+            RecordAndReport(TrackedSystem.ReplayRecorderTick, ElapsedMs(__state.Ticks), Math.Max(0, alloc));
         }
     }
 
     public static class Patch_EventManagerTrigger
     {
-        static readonly Stopwatch sw = new Stopwatch();
-        static string currentEvent;
-        static long memBefore;
-
-        public static void Prefix(string eventName)
+        public static void Prefix(out FrameProfilerMods.PerCallState __state)
         {
-            currentEvent = eventName;
-            memBefore = GC.GetTotalMemory(false);
-            sw.Restart();
+            __state.Ticks = Stopwatch.GetTimestamp();
+            __state.Mem = GC.GetTotalMemory(false);
         }
 
-        public static void Postfix()
+        public static void Postfix(string eventName, FrameProfilerMods.PerCallState __state)
         {
-            sw.Stop();
-            float ms = (float)sw.Elapsed.TotalMilliseconds;
-            long alloc = Math.Max(0, GC.GetTotalMemory(false) - memBefore);
+            float ms = ElapsedMs(__state.Ticks);
+            long alloc = Math.Max(0, GC.GetTotalMemory(false) - __state.Mem);
 
             stats[(int)TrackedSystem.EventManagerTrigger].Record(ms, alloc);
-            TrackFrameWinner($"EventManager.TriggerEvent(\"{currentEvent}\")", ms);
+            TrackFrameWinner($"EventManager.TriggerEvent(\"{eventName}\")", ms);
 
             if (alloc > 0)
             {
-                if (eventAllocStats.TryGetValue(currentEvent, out var existing))
+                if (eventAllocStats.TryGetValue(eventName, out var existing))
                 {
                     existing.Count++;
                     existing.TotalBytes += alloc;
-                    eventAllocStats[currentEvent] = existing;
+                    eventAllocStats[eventName] = existing;
                 }
                 else
                 {
-                    eventAllocStats[currentEvent] = new EventAllocStats { Count = 1, TotalBytes = alloc };
+                    eventAllocStats[eventName] = new EventAllocStats { Count = 1, TotalBytes = alloc };
                 }
             }
 
             if (ms > REPORT_THRESHOLD_MS || alloc > ALLOC_REPORT_THRESHOLD)
             {
-                Plugin.Log($"[FrameProfiler][STUTTER] EventManager.TriggerEvent(\"{currentEvent}\") time={ms:F2}ms alloc={FormatBytes(alloc)}");
+                Plugin.Log($"[FrameProfiler][STUTTER] EventManager.TriggerEvent(\"{eventName}\") time={ms:F2}ms alloc={FormatBytes(alloc)}");
             }
 
             if ((alloc > SPIKE_ALLOC_THRESHOLD || ms > SPIKE_TIME_THRESHOLD_MS)
                 && Time.unscaledTime - lastSpikeToastTime > SPIKE_TOAST_COOLDOWN)
             {
                 lastSpikeToastTime = Time.unscaledTime;
-                string msg = $"[Profiler] {currentEvent} - {ms:F0}ms / {FormatBytes(alloc)}";
+                string msg = $"[Profiler] {eventName} - {ms:F0}ms / {FormatBytes(alloc)}";
                 Plugin.Log($"[FrameProfiler][SPIKE ALERT] {msg}");
                 try { MonoBehaviourSingleton<UIManager>.Instance.ToastManager.ShowToast("tfp_spike", msg, 4f); } catch { }
             }
@@ -446,27 +454,29 @@ public static class FrameProfilerPatches
 
     public static class Patch_PlayerManagerGetPlayers
     {
-        static readonly Stopwatch sw = new Stopwatch();
-        static long memBefore;
-        public static void Prefix() { memBefore = GC.GetTotalMemory(false); sw.Restart(); }
-        public static void Postfix()
+        public static void Prefix(out FrameProfilerMods.PerCallState __state)
         {
-            sw.Stop();
-            long alloc = GC.GetTotalMemory(false) - memBefore;
-            RecordAndReport(TrackedSystem.PlayerManagerGetPlayers, (float)sw.Elapsed.TotalMilliseconds, Math.Max(0, alloc));
+            __state.Ticks = Stopwatch.GetTimestamp();
+            __state.Mem = GC.GetTotalMemory(false);
+        }
+        public static void Postfix(FrameProfilerMods.PerCallState __state)
+        {
+            long alloc = GC.GetTotalMemory(false) - __state.Mem;
+            RecordAndReport(TrackedSystem.PlayerManagerGetPlayers, ElapsedMs(__state.Ticks), Math.Max(0, alloc));
         }
     }
 
     public static class Patch_PuckManagerGetPucks
     {
-        static readonly Stopwatch sw = new Stopwatch();
-        static long memBefore;
-        public static void Prefix() { memBefore = GC.GetTotalMemory(false); sw.Restart(); }
-        public static void Postfix()
+        public static void Prefix(out FrameProfilerMods.PerCallState __state)
         {
-            sw.Stop();
-            long alloc = GC.GetTotalMemory(false) - memBefore;
-            RecordAndReport(TrackedSystem.PuckManagerGetPucks, (float)sw.Elapsed.TotalMilliseconds, Math.Max(0, alloc));
+            __state.Ticks = Stopwatch.GetTimestamp();
+            __state.Mem = GC.GetTotalMemory(false);
+        }
+        public static void Postfix(FrameProfilerMods.PerCallState __state)
+        {
+            long alloc = GC.GetTotalMemory(false) - __state.Mem;
+            RecordAndReport(TrackedSystem.PuckManagerGetPucks, ElapsedMs(__state.Ticks), Math.Max(0, alloc));
         }
     }
 }

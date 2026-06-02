@@ -192,6 +192,8 @@ public static class SwapperManager
     {
         Plugin.Log($"OnSceneLoaded: {scene.name}");
         ToasterReskinLoader.qol.ArenaVisuals.InvalidateCache();
+        ToasterReskinLoader.qol.PatchMinimapRotation.ResetTracking();
+        ToasterReskinLoader.qol.PatchPlayerUsernameColors.ResetTracking();
         GlossSwapper.ResetScanScheduled();
         if (scene.name.Equals("locker_room"))
         {
@@ -211,7 +213,7 @@ public static class SwapperManager
 
             // Entering a game scene — fetch appearances for all players on the server
             AppearanceAPI.FetchAllPlayersOnServer();
-            ui.sections.UISection.ApplyChatBackground(ReskinProfileManager.currentProfile.chatBackground);
+            ui.sections.UISection.ApplyChatBackground(qol.QoLRunner.Instance?.Config?.chatBackground ?? false);
             MinimapSwapper.ApplyRefreshRate();
         }
 
@@ -234,6 +236,10 @@ public static class SwapperManager
         // Wait a frame so LockerRoomPlayer / PlayerMesh are fully initialized
         yield return null;
         ui.sections.PlayerCustomizationSection.ReapplyLocalAppearanceToLockerRoom();
+        // Re-apply helmet/mask/cage colors + textures to the locker room preview.
+        // Without this, returning from a server leaves the goalie headgear at the
+        // game's default (black) until the TRL menu is opened and goalie is toggled.
+        ChangingRoomHelper.ApplyInitialCustomizations();
     }
 
     public static void OnBlueJerseyChanged() => OnJerseyChanged(PlayerTeam.Blue);

@@ -54,6 +54,50 @@ public static class UITools
         return popupField;
     }
 
+    /// <summary>
+    /// Builds a labelled reskin-selection dropdown row, wires the standard change handler
+    /// (persist the choice via ReskinProfileManager, then optionally refresh the locker-room
+    /// preview), appends it to <paramref name="container"/>, and returns the dropdown.
+    ///
+    /// Replaces the ~18-line block that was copy-pasted across the reskin sections. Pass a
+    /// preview team/role to refresh the preview on change (sticks, jerseys, helmets); omit them
+    /// for context-less reskins (ice, net). <paramref name="onChanged"/> runs after the standard
+    /// handling for rows that need extra UI updates (e.g. enabling colour sliders).
+    /// </summary>
+    public static PopupField<ReskinRegistry.ReskinEntry> AddReskinDropdownRow(
+        VisualElement container,
+        string label,
+        List<ReskinRegistry.ReskinEntry> choices,
+        ReskinRegistry.ReskinEntry current,
+        ReskinRegistry.ReskinEntry fallback,
+        string type,
+        string slot,
+        PlayerTeam? previewTeam = null,
+        PlayerRole? previewRole = null,
+        Action<ReskinRegistry.ReskinEntry> onChanged = null)
+    {
+        VisualElement row = CreateConfigurationRow();
+        row.Add(CreateConfigurationLabel(label));
+
+        PopupField<ReskinRegistry.ReskinEntry> dropdown = CreateConfigurationDropdownField();
+        dropdown.RegisterCallback<ChangeEvent<ReskinRegistry.ReskinEntry>>(evt =>
+        {
+            ReskinRegistry.ReskinEntry chosen = evt.newValue;
+            ReskinProfileManager.SetSelectedReskinInCurrentProfile(chosen, type, slot);
+            if (previewTeam.HasValue && previewRole.HasValue)
+            {
+                ChangingRoomHelper.SetPreviewContext(previewTeam.Value, previewRole.Value);
+                ChangingRoomHelper.RefreshPreview();
+            }
+            onChanged?.Invoke(chosen);
+        });
+        dropdown.choices = choices;
+        dropdown.value = current ?? fallback;
+        row.Add(dropdown);
+        container.Add(row);
+        return dropdown;
+    }
+
     public static PopupField<string> CreateStringDropdownField(List<string> choices, string defaultValue)
     {
         PopupField<string> popupField = new PopupField<string>(choices, defaultValue ?? choices[0]);
@@ -151,6 +195,33 @@ public static class UITools
         label.style.color = Color.white;
         label.style.whiteSpace = WhiteSpace.Normal;
         return label;
+    }
+
+    /// A text input styled to match the config palette (dark fill, white text) so it reads
+    /// as an editable box rather than transparent text.
+    public static TextField CreateConfigurationTextField(string value)
+    {
+        var field = new TextField { value = value ?? "" };
+        field.style.minHeight = 30;
+        field.style.fontSize = 16;
+        field.RegisterCallback<AttachToPanelEvent>(evt =>
+        {
+            var input = field.Q(className: "unity-base-text-field__input");
+            if (input == null) return;
+            input.style.backgroundColor = new StyleColor(new Color(0.15f, 0.15f, 0.15f));
+            input.style.color = Color.white;
+            input.style.paddingLeft = 8;
+            input.style.paddingRight = 8;
+            input.style.borderTopColor = new StyleColor(new Color(0.4f, 0.4f, 0.4f));
+            input.style.borderBottomColor = new StyleColor(new Color(0.4f, 0.4f, 0.4f));
+            input.style.borderLeftColor = new StyleColor(new Color(0.4f, 0.4f, 0.4f));
+            input.style.borderRightColor = new StyleColor(new Color(0.4f, 0.4f, 0.4f));
+            input.style.borderTopWidth = 1;
+            input.style.borderBottomWidth = 1;
+            input.style.borderLeftWidth = 1;
+            input.style.borderRightWidth = 1;
+        });
+        return field;
     }
 
     public static Toggle CreateConfigurationCheckbox(bool defaultValue)

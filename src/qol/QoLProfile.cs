@@ -5,6 +5,7 @@
 // below) so reskin profiles can be shared without leaking them.
 
 using Newtonsoft.Json;
+using UnityEngine;
 
 namespace ToasterReskinLoader.qol;
 
@@ -55,6 +56,12 @@ public class QoLProfile
     public bool EnableSavedServerPasswords { get; set; } = true;
     [JsonProperty("enableServerBrowserSortTweaks")]
     public bool EnableServerBrowserSortTweaks { get; set; } = true;
+    [JsonProperty("enableServerFavorites")]
+    public bool EnableServerFavorites { get; set; } = false;
+    [JsonProperty("enableServerBlocks")]
+    public bool EnableServerBlocks { get; set; } = false;
+    [JsonProperty("enableTrustedModLists")]
+    public bool EnableTrustedModLists { get; set; } = true;
     [JsonProperty("enableUnicodeFontFallback")]
     public bool EnableUnicodeFontFallback { get; set; } = true;
     [JsonProperty("enableFlagMaterialFix")]
@@ -76,10 +83,38 @@ public class QoLProfile
     public bool EnableFastServerBrowserScanning { get; set; } = false;
     [JsonProperty("enableVanillaUIRetheme")]
     public bool EnableVanillaUIRetheme { get; set; } = true;
+    [JsonProperty("enableServerSlotQueue")]
+    public bool EnableServerSlotQueue { get; set; } = true;
+    // V2 key rename (see note above) — flipped to default-off, so existing
+    // saves that merely inherited the old default-on don't keep "true".
+    [JsonProperty("enableMainMenuQuickJoinV2")]
+    public bool EnableMainMenuQuickJoin { get; set; } = false;
+    [JsonProperty("enableMainMenuServerBrowser")]
+    public bool EnableMainMenuServerBrowser { get; set; } = false;
+    [JsonProperty("enableUiTextShadow")]
+    public bool EnableUiTextShadow { get; set; } = true;
+    // V2 key rename (same migration trick as the cache/fast-scan keys
+    // above): the original "enableScoreboardMilliseconds" shipped
+    // default-on, so renaming forces existing saves that merely inherited
+    // that default back to the new default-off instead of keeping "true".
+    [JsonProperty("enableScoreboardMillisecondsV2")]
+    public bool EnableScoreboardMilliseconds { get; set; } = false;
+    [JsonProperty("enableScoreboardClockColor")]
+    public bool EnableScoreboardClockColor { get; set; } = true;
+    // V2 key rename (see note above) — flipped to default-off, so existing
+    // saves that merely inherited the old default-on don't keep "true".
+    [JsonProperty("enableChatNoFadeV2")]
+    public bool EnableChatNoFade { get; set; } = false;
+    [JsonProperty("enableChatTransparentContainer")]
+    public bool EnableChatTransparentContainer { get; set; } = true;
     [JsonProperty("enableEnhancedModMenu")]
     public bool EnableEnhancedModMenu { get; set; } = true;
     [JsonProperty("enableAutoConnectMatchmaking")]
     public bool EnableAutoConnectMatchmaking { get; set; } = false;
+    [JsonProperty("disableControllerInput")]
+    public bool DisableControllerInput { get; set; } = false;
+    [JsonProperty("enablePositionSelectFreeLook")]
+    public bool EnablePositionSelectFreeLook { get; set; } = true;
 
     // Persisted server browser filter values
     [JsonProperty("browserSearch")]
@@ -115,6 +150,62 @@ public class QoLProfile
     [JsonProperty("devConsoleH")]
     public float DevConsoleH { get; set; } = 460f;
 
+    // Display settings (moved out of the reskin profile)
+    [JsonProperty("crispyShadowsEnabled")]
+    public bool CrispyShadowsEnabled { get; set; } = true;
+    [JsonProperty("shadowResolution")]
+    public int ShadowResolution { get; set; } = 8192;
+    [JsonProperty("shadowDistance")]
+    public float ShadowDistance { get; set; } = 50f;
+    [JsonProperty("shadowCascadeCount")]
+    public int ShadowCascadeCount { get; set; } = 4;
+    [JsonProperty("shadowSoftShadows")]
+    public bool ShadowSoftShadows { get; set; } = true;
+    [JsonProperty("glossRemoverEnabled")]
+    public bool GlossRemoverEnabled { get; set; } = false;
+    [JsonProperty("glossSmoothness")]
+    public float GlossSmoothness { get; set; } = 0.5f;
+    [JsonProperty("glossAffectSticks")]
+    public bool GlossAffectSticks { get; set; } = true;
+    [JsonProperty("glossAffectPlayers")]
+    public bool GlossAffectPlayers { get; set; } = true;
+    [JsonProperty("glossAffectPucks")]
+    public bool GlossAffectPucks { get; set; } = true;
+    // Minimap
+    [JsonProperty("blueMinimapNumberColor")]
+    public SerializableColor BlueMinimapNumberColor { get; set; } = new SerializableColor(Color.white);
+    [JsonProperty("redMinimapNumberColor")]
+    public SerializableColor RedMinimapNumberColor { get; set; } = new SerializableColor(Color.white);
+    [JsonProperty("minimapPuckColor")]
+    public SerializableColor MinimapPuckColor { get; set; } = new SerializableColor(new Color(0f, 0f, 0f, 1f));
+    [JsonProperty("minimapPlayerScale")]
+    public float MinimapPlayerScale { get; set; } = 1f;
+    [JsonProperty("minimapPuckScale")]
+    public float MinimapPuckScale { get; set; } = 1f;
+    [JsonProperty("minimapRefreshRate")]
+    public int MinimapRefreshRate { get; set; } = 60;
+    [JsonProperty("localPlayerMinimapIconEnabled")]
+    public bool LocalPlayerMinimapIconEnabled { get; set; } = false;
+    [JsonProperty("blueLocalPlayerMinimapIconColor")]
+    public SerializableColor BlueLocalPlayerMinimapIconColor { get; set; } = new SerializableColor(new Color(0f, 1f, 0f, 1f));
+    [JsonProperty("redLocalPlayerMinimapIconColor")]
+    public SerializableColor RedLocalPlayerMinimapIconColor { get; set; } = new SerializableColor(new Color(0f, 1f, 0f, 1f));
+    [JsonProperty("teamIndicatorEnabled")]
+    public bool TeamIndicatorEnabled { get; set; } = false;
+    // Chat
+    [JsonProperty("chatHeight")]
+    public float ChatHeight { get; set; } = 300f;
+    [JsonProperty("chatBackground")]
+    public bool ChatBackground { get; set; } = false;
+    [JsonProperty("quickChatX")]
+    public float QuickChatX { get; set; } = 0f;
+    [JsonProperty("quickChatY")]
+    public float QuickChatY { get; set; } = 50f;
+    [JsonProperty("chatRenderAllEmojis")]
+    public bool ChatRenderAllEmojis { get; set; } = true;
+    [JsonProperty("displaySettingsMigrated")]
+    public bool DisplaySettingsMigrated { get; set; } = false;
+
     public QoLConfig ToConfig()
     {
         return new QoLConfig
@@ -140,6 +231,9 @@ public class QoLProfile
             enablePartyLineup = EnablePartyLineup,
             enableSavedServerPasswords = EnableSavedServerPasswords,
             enableServerBrowserSortTweaks = EnableServerBrowserSortTweaks,
+            enableServerFavorites  = EnableServerFavorites,
+            enableServerBlocks     = EnableServerBlocks,
+            enableTrustedModLists  = EnableTrustedModLists,
             enableUnicodeFontFallback = EnableUnicodeFontFallback,
             enableFlagMaterialFix = EnableFlagMaterialFix,
             enableBetterFriendsList = EnableBetterFriendsList,
@@ -147,8 +241,18 @@ public class QoLProfile
             enableServerPreviewCache = EnableServerPreviewCache,
             enableFastServerBrowserScanning = EnableFastServerBrowserScanning,
             enableVanillaUIRetheme = EnableVanillaUIRetheme,
+            enableServerSlotQueue = EnableServerSlotQueue,
+            enableMainMenuQuickJoin = EnableMainMenuQuickJoin,
+            enableMainMenuServerBrowser = EnableMainMenuServerBrowser,
+            enableUiTextShadow = EnableUiTextShadow,
+            enableScoreboardMilliseconds = EnableScoreboardMilliseconds,
+            enableScoreboardClockColor   = EnableScoreboardClockColor,
+            enableChatNoFade               = EnableChatNoFade,
+            enableChatTransparentContainer = EnableChatTransparentContainer,
             enableEnhancedModMenu = EnableEnhancedModMenu,
             enableAutoConnectMatchmaking = EnableAutoConnectMatchmaking,
+            disableControllerInput = DisableControllerInput,
+            enablePositionSelectFreeLook = EnablePositionSelectFreeLook,
             browserSearch = BrowserSearch,
             browserMaxPing = BrowserMaxPing,
             browserShowFull = BrowserShowFull,
@@ -164,6 +268,32 @@ public class QoLProfile
             devConsoleY = DevConsoleY,
             devConsoleW = DevConsoleW,
             devConsoleH = DevConsoleH,
+            crispyShadowsEnabled = CrispyShadowsEnabled,
+            shadowResolution = ShadowResolution,
+            shadowDistance = ShadowDistance,
+            shadowCascadeCount = ShadowCascadeCount,
+            shadowSoftShadows = ShadowSoftShadows,
+            glossRemoverEnabled = GlossRemoverEnabled,
+            glossSmoothness = GlossSmoothness,
+            glossAffectSticks = GlossAffectSticks,
+            glossAffectPlayers = GlossAffectPlayers,
+            glossAffectPucks = GlossAffectPucks,
+            blueMinimapNumberColor = BlueMinimapNumberColor != null ? (Color)BlueMinimapNumberColor : Color.white,
+            redMinimapNumberColor = RedMinimapNumberColor != null ? (Color)RedMinimapNumberColor : Color.white,
+            minimapPuckColor = MinimapPuckColor != null ? (Color)MinimapPuckColor : new Color(0f, 0f, 0f, 1f),
+            minimapPlayerScale = MinimapPlayerScale,
+            minimapPuckScale = MinimapPuckScale,
+            minimapRefreshRate = MinimapRefreshRate,
+            localPlayerMinimapIconEnabled = LocalPlayerMinimapIconEnabled,
+            blueLocalPlayerMinimapIconColor = BlueLocalPlayerMinimapIconColor != null ? (Color)BlueLocalPlayerMinimapIconColor : new Color(0f, 1f, 0f, 1f),
+            redLocalPlayerMinimapIconColor = RedLocalPlayerMinimapIconColor != null ? (Color)RedLocalPlayerMinimapIconColor : new Color(0f, 1f, 0f, 1f),
+            teamIndicatorEnabled = TeamIndicatorEnabled,
+            chatHeight = ChatHeight,
+            chatBackground = ChatBackground,
+            quickChatX = QuickChatX,
+            quickChatY = QuickChatY,
+            chatRenderAllEmojis = ChatRenderAllEmojis,
+            displaySettingsMigrated = DisplaySettingsMigrated,
         };
     }
 
@@ -191,6 +321,9 @@ public class QoLProfile
         EnablePartyLineup = c.enablePartyLineup;
         EnableSavedServerPasswords = c.enableSavedServerPasswords;
         EnableServerBrowserSortTweaks = c.enableServerBrowserSortTweaks;
+        EnableServerFavorites  = c.enableServerFavorites;
+        EnableServerBlocks     = c.enableServerBlocks;
+        EnableTrustedModLists  = c.enableTrustedModLists;
         EnableUnicodeFontFallback = c.enableUnicodeFontFallback;
         EnableFlagMaterialFix = c.enableFlagMaterialFix;
         EnableBetterFriendsList = c.enableBetterFriendsList;
@@ -198,8 +331,18 @@ public class QoLProfile
         EnableServerPreviewCache = c.enableServerPreviewCache;
         EnableFastServerBrowserScanning = c.enableFastServerBrowserScanning;
         EnableVanillaUIRetheme = c.enableVanillaUIRetheme;
+        EnableServerSlotQueue = c.enableServerSlotQueue;
+        EnableMainMenuQuickJoin = c.enableMainMenuQuickJoin;
+        EnableMainMenuServerBrowser = c.enableMainMenuServerBrowser;
+        EnableUiTextShadow = c.enableUiTextShadow;
+        EnableScoreboardMilliseconds = c.enableScoreboardMilliseconds;
+        EnableScoreboardClockColor   = c.enableScoreboardClockColor;
+        EnableChatNoFade               = c.enableChatNoFade;
+        EnableChatTransparentContainer = c.enableChatTransparentContainer;
         EnableEnhancedModMenu = c.enableEnhancedModMenu;
         EnableAutoConnectMatchmaking = c.enableAutoConnectMatchmaking;
+        DisableControllerInput = c.disableControllerInput;
+        EnablePositionSelectFreeLook = c.enablePositionSelectFreeLook;
         BrowserSearch = c.browserSearch;
         BrowserMaxPing = c.browserMaxPing;
         BrowserShowFull = c.browserShowFull;
@@ -215,6 +358,32 @@ public class QoLProfile
         DevConsoleY = c.devConsoleY;
         DevConsoleW = c.devConsoleW;
         DevConsoleH = c.devConsoleH;
+        CrispyShadowsEnabled = c.crispyShadowsEnabled;
+        ShadowResolution = c.shadowResolution;
+        ShadowDistance = c.shadowDistance;
+        ShadowCascadeCount = c.shadowCascadeCount;
+        ShadowSoftShadows = c.shadowSoftShadows;
+        GlossRemoverEnabled = c.glossRemoverEnabled;
+        GlossSmoothness = c.glossSmoothness;
+        GlossAffectSticks = c.glossAffectSticks;
+        GlossAffectPlayers = c.glossAffectPlayers;
+        GlossAffectPucks = c.glossAffectPucks;
+        BlueMinimapNumberColor = new SerializableColor(c.blueMinimapNumberColor);
+        RedMinimapNumberColor = new SerializableColor(c.redMinimapNumberColor);
+        MinimapPuckColor = new SerializableColor(c.minimapPuckColor);
+        MinimapPlayerScale = c.minimapPlayerScale;
+        MinimapPuckScale = c.minimapPuckScale;
+        MinimapRefreshRate = c.minimapRefreshRate;
+        LocalPlayerMinimapIconEnabled = c.localPlayerMinimapIconEnabled;
+        BlueLocalPlayerMinimapIconColor = new SerializableColor(c.blueLocalPlayerMinimapIconColor);
+        RedLocalPlayerMinimapIconColor = new SerializableColor(c.redLocalPlayerMinimapIconColor);
+        TeamIndicatorEnabled = c.teamIndicatorEnabled;
+        ChatHeight = c.chatHeight;
+        ChatBackground = c.chatBackground;
+        QuickChatX = c.quickChatX;
+        QuickChatY = c.quickChatY;
+        ChatRenderAllEmojis = c.chatRenderAllEmojis;
+        DisplaySettingsMigrated = c.displaySettingsMigrated;
     }
 }
 
@@ -228,5 +397,19 @@ public class ServerPrefsProfile
 
     [JsonProperty("trustedServerMods")]
     public System.Collections.Generic.Dictionary<string, string> TrustedServerMods { get; set; }
+        = new System.Collections.Generic.Dictionary<string, string>();
+
+    // ip:port -> last-seen friendly server name. Existence in this dict
+    // = favorited; the cached name is just to keep the QoL management UI
+    // readable when the favorited server isn't currently in the browser
+    // listing.
+    [JsonProperty("favoriteServers")]
+    public System.Collections.Generic.Dictionary<string, string> FavoriteServers { get; set; }
+        = new System.Collections.Generic.Dictionary<string, string>();
+
+    // Same shape as FavoriteServers, but rows that match are hidden from
+    // the server browser entirely.
+    [JsonProperty("blockedServers")]
+    public System.Collections.Generic.Dictionary<string, string> BlockedServers { get; set; }
         = new System.Collections.Generic.Dictionary<string, string>();
 }
